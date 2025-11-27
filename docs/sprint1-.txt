@@ -1,0 +1,6 @@
+Task A: Set up mono-repo and packages/shared.
+Task B: Initialize PostgreSQL migrations + seed defaults.
+Task C: Scaffold Express service with auth + X-Tenant-ID middleware.
+Task D: Create S3 buckets and signed URL Lambda.
+Task E: Admin app: login + tenant features page (read-only).
+Task F: GitHub Actions pipelines (lint/test/build, deploy admin to Vercel, run migrations).

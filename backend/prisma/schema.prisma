@@ -1,0 +1,278 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  tenant_id     String   @id @default(uuid())
+  name          String
+  domain        String   @unique
+  status        String
+  currency_code String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  users         User[]
+  roles         Role[]
+  features      TenantFeature[]
+  settings      TenantSetting[]
+  menus         Menu[]
+  offers        Offer[]
+  media         Media[]
+  auditLogs     AuditLog[]
+
+  // Added opposites for models that also reference Tenant
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+  menuCategories  MenuCategory[]
+  menuItems       MenuItem[]
+  addresses       Address[]
+  orders          Order[]
+  mediaLinks      MediaLink[]
+}
+
+model Permission {
+  permission_id String @id @default(uuid())
+  name          String @unique
+  description   String?
+  scope         String
+  // Added opposite
+  rolePermissions RolePermission[]
+}
+
+model User {
+  user_id       String   @id @default(uuid())
+  tenant_id     String
+  email         String
+  phone         String?
+  password_hash String
+  status        String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tenant     Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  roles      UserRole[]
+  addresses  Address[]
+  orders     Order[]
+  auditLogs  AuditLog[]
+
+  @@unique([tenant_id, email], name: "tenant_id_email")
+}
+
+model Role {
+  role_id     String   @id @default(uuid())
+  tenant_id   String
+  name        String
+  description String?
+
+  tenant      Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@unique([tenant_id, name])
+}
+
+model UserRole {
+  user_role_id String   @id @default(uuid())
+  user_id      String
+  role_id      String
+  tenant_id    String
+  created_at   DateTime @default(now())
+
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  role   Role   @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([user_id, role_id])
+}
+
+model RolePermission {
+  role_permission_id String @id @default(uuid())
+  role_id            String
+  permission_id      String
+  tenant_id          String
+
+  role       Role       @relation(fields: [role_id], references: [role_id], onDelete: Cascade)
+  permission Permission @relation(fields: [permission_id], references: [permission_id])
+  tenant     Tenant     @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([role_id, permission_id])
+}
+
+model Feature {
+  feature_id      String @id @default(uuid())
+  feature_key     String @unique
+  default_enabled Boolean
+  description     String?
+  tenants         TenantFeature[]
+}
+
+model TenantFeature {
+  tenant_feature_id String  @id @default(uuid())
+  tenant_id         String
+  feature_id        String
+  is_enabled        Boolean @default(false)
+  config            Json?
+  updated_at        DateTime @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  feature Feature @relation(fields: [feature_id], references: [feature_id], onDelete: Cascade)
+
+  @@unique([tenant_id, feature_id])
+}
+
+model TenantSetting {
+  tenant_setting_id String  @id @default(uuid())
+  tenant_id         String
+  key               String
+  value             Json
+  updated_at        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([tenant_id, key])
+}
+
+model Menu {
+  menu_id     String   @id @default(uuid())
+  tenant_id   String
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+
+  tenant      Tenant        @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  categories  MenuCategory[]
+
+  @@unique([tenant_id, name])
+}
+
+model MenuCategory {
+  category_id String  @id @default(uuid())
+  tenant_id   String
+  menu_id     String
+  name        String
+  order_index Int     @default(0)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  menu   Menu   @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade)
+  items  MenuItem[]
+
+  @@unique([menu_id, name, tenant_id])
+}
+
+model MenuItem {
+  item_id      String   @id @default(uuid())
+  tenant_id    String
+  category_id  String
+  name         String
+  description  String?
+  price        Decimal
+  is_available Boolean  @default(true)
+  created_at   DateTime @default(now())
+
+  tenant   Tenant       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  category MenuCategory @relation(fields: [category_id], references: [category_id], onDelete: Cascade)
+
+  @@unique([category_id, name, tenant_id])
+}
+
+model Offer {
+  offer_id        String   @id @default(uuid())
+  tenant_id       String
+  name            String
+  description     String?
+  discount_type   String
+  discount_value  Decimal
+  min_order_value Decimal?
+  start_date      DateTime
+  end_date        DateTime?
+  is_active       Boolean  @default(true)
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([tenant_id, name])
+}
+
+model Address {
+  address_id String  @id @default(uuid())
+  tenant_id  String
+  user_id    String
+  street     String
+  city       String
+  state      String
+  zip        String
+  lat        Float?
+  lng        Float?
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model Order {
+  order_id            String   @id @default(uuid())
+  tenant_id           String
+  user_id             String
+  order_status        String
+  payment_status      String
+  subtotal            Decimal
+  tax                 Decimal
+  discount            Decimal
+  total               Decimal
+  delivery_address_id String?
+  currency_code       String
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+}
+
+model Media {
+  media_id   String   @id @default(uuid())
+  tenant_id  String
+  url        String
+  type       String
+  source     String
+  created_at DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  links  MediaLink[]
+}
+
+model MediaLink {
+  link_id     String  @id @default(uuid())
+  media_id    String
+  tenant_id   String
+  entity_type String
+  entity_id   String
+  purpose     String?
+
+  media  Media  @relation(fields: [media_id], references: [media_id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@index([entity_type, entity_id, tenant_id])
+}
+
+model AuditLog {
+  audit_id       String   @id @default(uuid())
+  tenant_id      String
+  user_id        String?
+  entity_type    String
+  entity_id      String
+  action_type    String
+  change_summary Json?
+  created_at     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  user   User?  @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+}

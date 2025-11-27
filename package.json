@@ -1,0 +1,19 @@
+{
+  "name": "delivery-app-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "admin",
+    "backend",
+    "packages/shared"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test"
+  },
+  "engines": {
+    "node": ">=18",
+    "npm": ">=7"
+  }
+}

@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports: [ "5432:5432" ]
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: delivery_app
+        options: >-
+          --health-cmd="pg_isready -U postgres -d delivery_app"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/delivery_app?schema=public
+      JWT_PRIVATE_KEY: -----BEGIN RSA PRIVATE KEY-----\nTEST\n-----END RSA PRIVATE KEY-----
+      JWT_PUBLIC_KEY: -----BEGIN PUBLIC KEY-----\nTEST\n-----END PUBLIC KEY-----
+      TOKEN_AUD_TENANT: tenant-api
+      TOKEN_ISS: delivery-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            backend/package.json
+
+      - name: Install root deps (if monorepo)
+        run: npm install
+
+      - name: Install backend deps
+        working-directory: backend
+        run: npm install
+
+      - name: Prisma generate
+        working-directory: backend
+        run: npx prisma generate
+
+      - name: Prisma migrate (dev)
+        working-directory: backend
+        run: npx prisma migrate deploy
+
+      - name: Build TypeScript
+        working-directory: backend
+        run: npm run build
+
+      - name: Run tests (placeholder)
+        working-directory: backend
+        run: npm test
+
+      - name: Lint (optional placeholder)
+        if: always()
+        run: echo "Add ESLint here"

@@ -1,0 +1,66 @@
+openapi: 3.0.3
+info:
+  title: Restaurant Multi-Tenant API
+  version: 0.1.0
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TenantIdHeader:
+      in: header
+      name: X-Tenant-ID
+      required: true
+      schema: { type: string, format: uuid }
+      description: Tenant context for tenant-scoped endpoints
+  responses:
+    Unauthorized:
+      description: Unauthorized
+    Forbidden:
+      description: Forbidden
+security:
+  - bearerAuth: []
+paths:
+  /platform/auth/login:
+    post:
+      summary: Platform login
+      security: []  # optional if you allow pre-auth
+      responses: { '200': { description: OK }, '401': { $ref: '#/components/responses/Unauthorized' } }
+
+  /platform/tenants:
+    get:
+      summary: List tenants
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create tenant
+      responses: { '201': { description: Created } }
+
+  /auth/login:
+    post:
+      summary: Tenant login
+      parameters: [ { $ref: '#/components/parameters/TenantIdHeader' } ]
+      responses: { '200': { description: OK }, '401': { $ref: '#/components/responses/Unauthorized' } }
+
+  /me:
+    get:
+      summary: Current user and features
+      parameters: [ { $ref: '#/components/parameters/TenantIdHeader' } ]
+      responses: { '200': { description: OK }, '403': { $ref: '#/components/responses/Forbidden' } }
+
+  /features:
+    get:
+      summary: Resolved feature flags for tenant
+      parameters: [ { $ref: '#/components/parameters/TenantIdHeader' } ]
+      responses: { '200': { description: OK } }
+
+  /menus:
+    get:
+      summary: List menus
+      parameters: [ { $ref: '#/components/parameters/TenantIdHeader' } ]
+      responses: { '200': { description: OK } }
+    post:
+      summary: Create menu
+      parameters: [ { $ref: '#/components/parameters/TenantIdHeader' } ]
+      responses: { '201': { description: Created }, '403': { $ref: '#/components/responses/Forbidden' } }

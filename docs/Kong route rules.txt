@@ -1,0 +1,10 @@
+Kong route rules (conceptual):
+
+Create services/routes for:
+/platform/* → platform service (no X-Tenant-ID check)
+/auth/, /menus/, /offers/, /orders/, etc. → tenant service (require X-Tenant-ID)
+Plugins:
+jwt: enabled on both, different audiences/scopes
+request-transformer: validate/passthrough X-Tenant-ID
+rate-limiting: stricter on /auth/*
+acl or custom policy to check feature flags (via upstream)

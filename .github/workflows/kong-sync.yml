@@ -1,0 +1,21 @@
+name: Kong Sync
+on:
+  push:
+    branches: [ main ]
+    paths: [ "kong/**" ]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install decK
+        run: |
+          curl -sL https://github.com/kong/deck/releases/latest/download/deck_$(uname -s)_amd64.tar.gz | tar -xz deck
+      - name: Sync
+        env:
+          KONG_ADDR: ${{ secrets.KONG_ADMIN_URL }}
+          KONG_TOKEN: ${{ secrets.KONG_ADMIN_TOKEN }}
+        run: |
+          ./deck sync --state kong/ --kong-addr $KONG_ADDR --headers "Kong-Admin-Token:$KONG_TOKEN"

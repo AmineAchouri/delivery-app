@@ -1,0 +1,27 @@
+Tenant resolution and auth contract xtenant id per header
+Decide how requests carry tenant context: JWT claim vs X-Tenant-ID header vs subdomain.
+Define roles/permissions defaults per tenant; finalize auth flows (signup/invite, password reset, delivery agent onboarding).
+API spec (OpenAPI)
+Draft endpoints for core domains: Auth, Users/Roles, Menus/Items/Options, Offers, Orders, Payments, Delivery, Media, Settings/Features.
+Include request/response schemas with tenant_id scoping and pagination.
+Repository and environment setup
+Choose mono-repo structure: admin/, mobile/, backend/, packages/shared/ (types, utils).
+Environments: dev, staging, prod; secret management (AWS SSM Parameter Store).
+Database schema and migrations
+Pick migration tool (Prisma/Knex/Sequelize).
+Implement initial DDL from ER model; add indexes/uniques; seed baseline data (permissions, default roles, features).
+CI/CD design
+GitHub Actions: lint/test/build on PR; deploy admin to Vercel; deploy Lambdas; run DB migrations; tag releases.
+Mobile: build workflows for App Store/Play internal testing channels.
+API Gateway and backend topology
+Kong routes/services for each domain; JWT plugin; rate limiting; logging.
+Split services: begin with a single Express service + Lambdas for heavy tasks (media processing, invoice generation), then separate by domain later.
+Object storage and media pipeline
+Configure S3 buckets, signed URL upload, image resizing Lambda, media link handling.
+Frontends scaffolding
+Admin (React) skeleton: auth, tenant switcher, feature flag loading, basic CRUD pages (Menu, Offers).
+Mobile/web client: browse menu, cart/checkout, order tracking.
+Observability and policies
+Logging with correlation IDs, metrics (orders per hour, payment failures), alerts.
+Data retention/backup, GDPR considerations (delete/export user).
+If this sequence works, I can outline the OpenAPI sections next and propose the repo structure and migration tool choice.

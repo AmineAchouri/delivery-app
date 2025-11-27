@@ -1,0 +1,17 @@
+{
+  "feature_key": "core",
+  "env": {
+    "test": {
+      "SSM_DATABASE_URL_PARAM": "/delivery/test/DATABASE_URL",
+      "SSM_JWT_PRIVATE_KEY_PARAM": "/delivery/test/JWT_PRIVATE_KEY",
+      "SSM_JWT_PUBLIC_KEY_PARAM": "/delivery/test/JWT_PUBLIC_KEY",
+      "EXTRA_FLAGS": "BASE_CORE"
+    },
+    "prod": {
+      "SSM_DATABASE_URL_PARAM": "/delivery/prod/DATABASE_URL",
+      "SSM_JWT_PRIVATE_KEY_PARAM": "/delivery/prod/JWT_PRIVATE_KEY",
+      "SSM_JWT_PUBLIC_KEY_PARAM": "/delivery/prod/JWT_PUBLIC_KEY",
+      "EXTRA_FLAGS": "BASE_CORE"
+    }
+  }
+}

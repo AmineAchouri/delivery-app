@@ -1,0 +1,11 @@
+OpenAPI essentials
+
+Global security: Bearer JWT (RS256)
+Tenant routes require header X-Tenant-ID
+Platform routes omit X-Tenant-ID
+Standard error schemas
+Kong gateway enforcement
+
+JWT plugin (RS256, iss/aud validation)
+Route-level header requirement: X-Tenant-ID on tenant paths
+Rate limits on auth endpoints

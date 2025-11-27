@@ -1,0 +1,38 @@
+{
+  "family": "core-api-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "${EXEC_ROLE_ARN}",
+  "taskRoleArn": "${TASK_ROLE_ARN}",
+  "containerDefinitions": [
+    {
+      "name": "core-api",
+      "image": "${IMAGE_URI}",
+      "essential": true,
+      "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+      "environment": [
+        { "name": "PORT", "value": "3000" },
+        { "name": "TOKEN_ISS", "value": "delivery-app" },
+        { "name": "TOKEN_AUD_TENANT", "value": "tenant-api" },
+        { "name": "FEATURE_FLAGS", "value": "${EXTRA_FLAGS}" },
+        { "name": "DEPLOY_ENV", "value": "${DEPLOY_ENV}" },
+        { "name": "FEATURE_KEY", "value": "${FEATURE_KEY}" }
+      ],
+      "secrets": [
+        { "name": "DATABASE_URL", "valueFrom": "${SSM_DATABASE_URL_PARAM}" },
+        { "name": "JWT_PRIVATE_KEY", "valueFrom": "${SSM_JWT_PRIVATE_KEY_PARAM}" },
+        { "name": "JWT_PUBLIC_KEY", "valueFrom": "${SSM_JWT_PUBLIC_KEY_PARAM}" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/core-api",
+          "awslogs-region": "${AWS_REGION}",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

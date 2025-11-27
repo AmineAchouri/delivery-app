@@ -1,0 +1,13 @@
+{
+  "name": "@delivery/admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"admin build placeholder\"",
+    "lint": "echo \"no lint yet\"",
+    "test": "echo \"no tests yet\""
+  },
+  "dependencies": {
+    "@delivery/shared": "*"
+  }
+}

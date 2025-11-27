@@ -1,0 +1,36 @@
+Here’s the next step sequence to move forward (beyond Kong/OpenAPI), focusing on scaffolding and CI/CD.
+
+Repository structure (mono-repo)
+admin/ (React)
+mobile/ (Flutter)
+backend/ (Node.js Express + Lambdas)
+infra/ (IaC, env configs)
+packages/shared/ (types, auth utils, OpenAPI schemas)
+docs/ (ERD, specs)
+Database migrations and seed
+Choose tool: Prisma or Knex (PostgreSQL).
+Implement schema from ER model.
+Seed: permissions, default roles (OWNER, STAFF, DELIVERY_AGENT, CUSTOMER), features (PAYMENT, DELIVERY_TRACKING, WEB_CLIENT, ANALYTICS, INVOICING).
+Backend scaffolding
+Express service: auth, users/roles, menus, offers, orders.
+Lambda functions: media upload (signed URLs), image processing, invoice generation, daily stats aggregation.
+Middleware: require X-Tenant-ID, JWT validation, feature-flag check.
+Object storage
+S3 buckets: media-uploads, media-public.
+Signed URL upload flow, basic image resizing Lambda.
+Admin app scaffolding
+Auth pages, tenant switcher.
+Feature flags fetch, settings page.
+Basic CRUD pages: Menu, Categories, Items, Offers.
+Mobile app scaffolding
+Login, menu browse, cart, checkout, order tracking.
+Uses HTTPS to API Gateway, X-Tenant-ID header set per tenant.
+CI/CD setup (GitHub Actions)
+admin: build → deploy to Vercel (dev/staging/prod).
+backend: test → migrate DB → deploy Express to AWS (ECS/EC2 or Lambda via API Gateway for specific tasks).
+lambdas: build → deploy (SAM or Serverless Framework).
+mobile: build pipelines to TestFlight/Internal App Sharing (no store release yet).
+Environments and secrets
+dev/staging/prod in AWS SSM Parameter Store.
+KMS for JWT private keys.
+Per-tenant config stored in TENANT_FEATURE/TENANT_SETTING.

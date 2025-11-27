@@ -1,0 +1,105 @@
+_format_version: "3.0"
+_transform: true
+
+# JWT auth using RS256 (set your public keys via secrets or environment)
+consumers:
+  - username: platform
+    custom_id: platform
+  - username: tenant
+    custom_id: tenant
+
+plugins:
+  # Global rate limit baseline
+  - name: rate-limiting
+    config:
+      minute: 1200
+      policy: local
+
+services:
+  - name: platform-api
+    url: http://platform-backend.internal:8080
+    routes:
+      - name: platform-routes
+        paths:
+          - /platform
+        strip_path: false
+        protocols: [http, https]
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: kid
+              run_on_preflight: false
+              algorithm: RS256
+              claims_to_verify: ["exp", "nbf"]
+              allowed_auds: ["platform-api"]
+          - name: rate-limiting
+            config:
+              minute: 600
+              policy: local
+
+  - name: tenant-api
+    url: http://tenant-backend.internal:8080
+    routes:
+      - name: tenant-routes
+        paths:
+          - /auth
+          - /menus
+          - /offers
+          - /orders
+          - /payments
+          - /delivery
+          - /media
+          - /settings
+          - /features
+        strip_path: false
+        protocols: [http, https]
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: kid
+              run_on_preflight: false
+              algorithm: RS256
+              claims_to_verify: ["exp", "nbf"]
+              allowed_auds: ["tenant-api"]
+          # Require X-Tenant-ID header on all tenant routes
+          - name: request-transformer
+            config:
+              add:
+                headers: []
+              remove:
+                headers: []
+              append:
+                headers: []
+              replace:
+                headers: []
+              # Use 'header' validator via 'lua-resty'
+          - name: pre-function
+            config:
+              access:
+                - |
+                  -- deny if header missing or invalid UUID
+                  local h = kong.request.get_header("X-Tenant-ID")
+                  if not h or type(h) ~= "string" then
+                    return kong.response.exit(400, { message = "X-Tenant-ID header required" })
+                  end
+                  if not string.match(h, "^[0-9a-fA-F%-]+$") then
+                    return kong.response.exit(400, { message = "Invalid X-Tenant-ID format" })
+                  end
+          - name: rate-limiting
+            config:
+              minute: 900
+              policy: local
+
+# Stricter limits for auth endpoints
+routes:
+  - name: tenant-auth-routes
+    paths:
+      - /auth
+    strip_path: false
+    protocols: [http, https]
+    service: tenant-api
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
