@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import { JwtClaims } from '@delivery/shared';
+import { JwtClaims } from '../types/jwt';
 
 const PUBLIC_KEY = (process.env.JWT_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
 
@@ -11,12 +11,6 @@ export function auth(req: Request, res: Response, next: NextFunction) {
   try {
     const decoded = jwt.verify(token, PUBLIC_KEY, { algorithms: ['RS256'] }) as JwtClaims;
     (req as any).user = decoded;
-    if (decoded.typ === 'tenant') {
-      const tenantHeader = req.header('X-Tenant-ID');
-      if (!tenantHeader || tenantHeader !== decoded.tenant_id) {
-        return res.status(403).json({ message: 'Tenant mismatch' });
-      }
-    }
     next();
   } catch {
     return res.status(401).json({ message: 'Invalid token' });
