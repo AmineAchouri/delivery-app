@@ -7,8 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
-  build-test:
+  backend:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [18, 20]
     services:
       postgres:
         image: postgres:16-alpine
@@ -30,38 +33,40 @@ jobs:
       TOKEN_ISS: delivery-app
     steps:
       - uses: actions/checkout@v4
-
-      - name: Use Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
           cache: npm
           cache-dependency-path: |
-            backend/package.json
-
-      - name: Install root deps (if monorepo)
+            package-lock.json
+            backend/package-lock.json
+            packages/shared/package-lock.json
+      - name: Install workspaces
         run: npm install
-
-      - name: Install backend deps
-        working-directory: backend
-        run: npm install
-
-      - name: Prisma generate
+      - name: Generate Prisma client
         working-directory: backend
         run: npx prisma generate
-
-      - name: Prisma migrate (dev)
+      - name: Migrate schema
         working-directory: backend
         run: npx prisma migrate deploy
-
-      - name: Build TypeScript
+      - name: Seed data
+        working-directory: backend
+        run: npx ts-node prisma/seed.ts
+      - name: Build
         working-directory: backend
         run: npm run build
-
-      - name: Run tests (placeholder)
+      - name: Tests (placeholder)
         working-directory: backend
         run: npm test
-
-      - name: Lint (optional placeholder)
-        if: always()
+      - name: Lint (placeholder)
         run: echo "Add ESLint here"
+
+  shared-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - name: Build shared
+        working-directory: packages/shared
+        run: npm install && npm run build

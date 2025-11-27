@@ -1,10 +1,14 @@
-node_modules
+# Dependencies
 **/node_modules
-dist
-.git
-.gitignore
-.github
-infra
-mobile
-frontend-admin
-kong
+# Builds
+**/dist
+# Env & secrets
+.env
+.env.*
+backend/.env
+backend/scripts/keys/*.pem
+# Local data
+testing/postgres/data
+# Misc
+a.txt
+Untitled-*.yml
