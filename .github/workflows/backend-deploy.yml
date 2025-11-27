@@ -24,26 +24,37 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: |
+      - name: Build backend
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y openssl
           cd backend
           npm install
           npx prisma generate
           npm run build
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: us-east-1
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+      - name: Ensure ECR repo
+        run: |
+          aws ecr describe-repositories --repository-names delivery-core-api >/dev/null 2>&1 || \
+          aws ecr create-repository --repository-name delivery-core-api --image-scanning-configuration scanOnPush=true --encryption-configuration encryptionType=KMS
       - name: Build & push
         id: out
         run: |
-          TAG=${{ github.event.inputs.image_tag || format('{0}-{1}-{2}', (date +%Y%m%d%H%M%S), github.event.inputs.env, github.event.inputs.feature) }}
-          IMAGE=${{ steps.ecr.outputs.registry }}/delivery-core-api:$TAG
-          docker build -t $IMAGE backend
-          docker push $IMAGE
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+          REPO=delivery-core-api
+          REGISTRY=${{ steps.ecr.outputs.registry }}
+          TAG_INPUT='${{ github.event.inputs.image_tag }}'
+          if [ -z "$TAG_INPUT" ]; then
+            TAG_INPUT="$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}"
+          fi
+          IMAGE="${REGISTRY}/${REPO}:$TAG_INPUT"
+          docker build -t "$IMAGE" backend
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
   deploy-ecs:
     runs-on: ubuntu-latest
@@ -62,9 +73,9 @@ jobs:
           cat feature_env.txt
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: us-east-1
       - name: Render task definition
         run: |
           . feature_env.txt
@@ -85,7 +96,7 @@ jobs:
         id: reg
         run: |
           REV=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.revision" --output text)
-          echo "rev=$REV" >> $GITHUB_OUTPUT
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
       - name: Update service
         run: |
           aws ecs update-service --cluster delivery-cluster --service core-api --task-definition core-api-task:${{ steps.reg.outputs.rev }}
