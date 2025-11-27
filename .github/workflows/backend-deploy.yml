@@ -13,6 +13,12 @@ on:
       image_tag:
         description: Optional override image tag
         required: false
+      ecs_cluster:
+        description: ECS cluster name
+        required: true
+      ecs_service:
+        description: ECS service name
+        required: true
 
 jobs:
   build-image:
@@ -99,9 +105,13 @@ jobs:
           echo "rev=$REV" >> "$GITHUB_OUTPUT"
       - name: Update service
         run: |
-          aws ecs update-service --cluster delivery-cluster --service core-api --task-definition core-api-task:${{ steps.reg.outputs.rev }}
+          aws ecs update-service \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --service '${{ github.event.inputs.ecs_service }}' \
+            --task-definition core-api-task:${{ steps.reg.outputs.rev }} \
+            --force-new-deployment
       - name: Wait stable
-        run: aws ecs wait services-stable --cluster delivery-cluster --services core-api
+        run: aws ecs wait services-stable --cluster '${{ github.event.inputs.ecs_cluster }}' --services '${{ github.event.inputs.ecs_service }}'
       - name: Smoke test
         run: |
           curl -fsS https://YOUR_API_DOMAIN/health || (echo "Smoke test failed" && exit 1)
