@@ -40,11 +40,10 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build & push
-        id: out
         run: |
-          TAG=${{ github.event.inputs.image_tag || format('{0}-{1}-{2}', (date +%Y%m%d%H%M%S), github.event.inputs.env, github.event.inputs.feature) }}
+          TAG=$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}
           IMAGE=${{ steps.ecr.outputs.registry }}/delivery-core-api:$TAG
-          docker build -f backend/Dockerfile -t $IMAGE .
+          docker build -t $IMAGE backend
           docker push $IMAGE
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
