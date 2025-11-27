@@ -13,23 +13,20 @@ on:
       image_tag:
         description: Optional override image tag
         required: false
-  push:
-    branches: [ main ]
-    paths: [ "backend/**" ]
 
 jobs:
   build-image:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     outputs:
       image-uri: ${{ steps.out.outputs.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - run: |
           cd backend
-          npm ci
+          npm install
           npx prisma generate
           npm run build
       - uses: aws-actions/configure-aws-credentials@v4
@@ -40,27 +37,27 @@ jobs:
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
       - name: Build & push
+        id: out
         run: |
-          TAG=$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}
+          TAG=${{ github.event.inputs.image_tag || format('{0}-{1}-{2}', (date +%Y%m%d%H%M%S), github.event.inputs.env, github.event.inputs.feature) }}
           IMAGE=${{ steps.ecr.outputs.registry }}/delivery-core-api:$TAG
           docker build -t $IMAGE backend
           docker push $IMAGE
           echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
   deploy-ecs:
-    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: build-image
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with:
+          node-version: 20
       - name: Read feature config
         id: featurecfg
         run: |
           FILE=infra/env/features/${{ github.event.inputs.feature }}.json
           if [ ! -f "$FILE" ]; then echo "Feature config not found: $FILE" && exit 1; fi
-          # Extract environment block using node (avoid jq dependency)
           node -e "const f=require('./$FILE');const e='${{ github.event.inputs.env }}';const o=f.env[e];if(!o){process.exit(1)};for(const k in o){console.log(k+'='+o[k])};console.log('FEATURE_KEY='+f.feature_key)" >> feature_env.txt
           cat feature_env.txt
       - uses: aws-actions/configure-aws-credentials@v4
@@ -91,21 +88,9 @@ jobs:
           echo "rev=$REV" >> $GITHUB_OUTPUT
       - name: Update service
         run: |
-          aws ecs update-service \
-            --cluster delivery-cluster \
-            --service core-api \
-            --task-definition core-api-task:${{ steps.reg.outputs.rev }}
+          aws ecs update-service --cluster delivery-cluster --service core-api --task-definition core-api-task:${{ steps.reg.outputs.rev }}
       - name: Wait stable
         run: aws ecs wait services-stable --cluster delivery-cluster --services core-api
       - name: Smoke test
         run: |
           curl -fsS https://YOUR_API_DOMAIN/health || (echo "Smoke test failed" && exit 1)
-
-services:
-  postgres:
-    image: postgres:16-alpine
-    env:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: delivery_app
-    ports: [ "5432:5432" ]
