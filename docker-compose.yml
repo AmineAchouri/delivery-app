@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    image: delivery-backend:latest
+    env_file:
+      - backend/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: delivery
+      POSTGRES_PASSWORD: delivery
+      POSTGRES_DB: delivery
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  pgdata:

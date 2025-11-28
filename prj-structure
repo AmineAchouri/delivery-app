@@ -1,0 +1,66 @@
+What this repo contains
+
+Monorepo structure with admin, backend, mobile, and shared packages.
+Backend service (Node/TypeScript, Express + Prisma + JWT):
+Source: backend/src
+Prisma schema and migrations: backend/prisma
+Dockerfile for containerization
+Keys for JWT in backend/scripts/keys
+Shared package: packages/shared
+CI/CD and deployment: .github/workflows/* and infra/
+API gateway config: kong.yaml (and kong-sync workflow)
+Local testing stack: docker-compose.yml with Postgres data
+Backend highlights
+
+Auth middleware and services in backend/src/middleware and backend/src/services
+Prisma configured via backend/prisma.config.ts; schema at schema.prisma
+Initial migration exists: backend/prisma/migrations/20251127140557_init_core
+JWT keys already generated under backend/scripts/keys
+Run locally (without Docker)
+
+Start Postgres
+Option A: Use docker-compose in testing/
+cd testing
+docker compose up -d
+Postgres boots with init SQL in 001-init.sql
+Option B: Use your own Postgres and set env vars accordingly.
+Configure backend env
+Copy .env and set:
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+JWT_PRIVATE_KEY_PATH=./scripts/keys/jwt_private.pem
+JWT_PUBLIC_KEY_PATH=./scripts/keys/jwt_public.pem
+PORT=3000
+Any tenant/feature flags as needed
+Install deps and generate Prisma client
+cd backend
+npm install
+npx prisma migrate dev
+npx prisma generate
+Optional: seed data with ts-node prisma/seed.ts if provided
+Run backend
+npm run dev (ts-node/ts-node-dev) or npm start (compiled)
+Server entrypoint: server.ts
+Run with Docker
+
+cd backend
+docker build -t delivery-backend .
+docker run --env-file .env -p 3000:3000 delivery-backend
+Ensure the container can reach your Postgres (compose service or external)
+Kong / API Gateway
+
+kong.yaml defines routes/services; the kong-sync.yml likely syncs it.
+For local Kong use, point upstream to backend PORT.
+Admin/mobile
+
+package.json and mobile/ folders exist but look minimal in this snapshot; likely separate setup.
+Migrations & DB state
+
+You already have a tracked migration dated 2025-11-27.
+If using the testing Postgres, first run migrate dev so schema matches the code.
+The testing/postgres/data contains a live PG data directory—compose manages it; avoid manual edits.
+Common pitfalls to check
+
+Prisma engines on Windows are included; ensure Node version matches package.json engines.
+.env paths for JWT keys must be correct relative to backend working dir.
+If migrate fails, confirm DATABASE_URL and that the DB is reachable.
+If using docker-compose, confirm the backend network can reach the Postgres service name.
