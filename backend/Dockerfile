@@ -15,8 +15,11 @@ COPY backend/tsconfig.json backend/
 COPY backend/src backend/src
 COPY backend/prisma backend/prisma
 
-# Generate Prisma client (run in backend dir)
-RUN cd backend && npx prisma generate
+# Debug: confirm schema exists in image
+RUN ls -la backend && ls -la backend/prisma
+
+# Generate Prisma client with explicit schema path
+RUN npx --prefix backend prisma generate --schema backend/prisma/schema.prisma
 
 # Build
 RUN npm run --prefix backend build
