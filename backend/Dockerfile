@@ -1,8 +1,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 RUN apk add --no-cache openssl
-COPY package*.json ./
-RUN npm ci
+COPY package.json package-lock.json* ./
+# Use npm install if no lockfile present
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 
 FROM node:20-alpine AS builder
 WORKDIR /app
@@ -19,7 +20,6 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 RUN apk add --no-cache openssl
-# Keep production deps plus generated Prisma client
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
