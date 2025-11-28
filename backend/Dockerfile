@@ -1,16 +1,29 @@
-FROM node:20-alpine AS build
+FROM node:20-alpine AS deps
 WORKDIR /app
+RUN apk add --no-cache openssl
 COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npx prisma generate && npm run build
+RUN npm ci
 
-FROM node:20-alpine
+FROM node:20-alpine AS builder
+WORKDIR /app
+RUN apk add --no-cache openssl
+COPY --from=deps /app/node_modules ./node_modules
+COPY prisma ./prisma
+COPY tsconfig.json ./
+COPY src ./src
+# Generate Prisma client inside the image
+RUN npx prisma generate
+RUN npm run build
+
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
-COPY package*.json ./
-RUN npm install --omit=dev
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/prisma ./prisma
+RUN apk add --no-cache openssl
+# Keep production deps plus generated Prisma client
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/dist ./dist
+COPY prisma ./prisma
 EXPOSE 3000
-CMD ["node","dist/server.js"]
+CMD ["node", "dist/server.js"]

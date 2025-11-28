@@ -112,6 +112,7 @@ jobs:
             --force-new-deployment
       - name: Wait stable
         run: aws ecs wait services-stable --cluster '${{ github.event.inputs.ecs_cluster }}' --services '${{ github.event.inputs.ecs_service }}'
-      - name: Smoke test
+      - name: Smoke test (optional)
+        if: ${{ false }} # disable until domain is set
         run: |
           curl -fsS https://YOUR_API_DOMAIN/health || (echo "Smoke test failed" && exit 1)
