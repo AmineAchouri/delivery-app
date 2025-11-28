@@ -4,21 +4,22 @@ FROM node:20-bullseye-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-# Install backend deps
-COPY backend/package.json backend/package.json
-COPY backend/package-lock.json backend/package-lock.json
-RUN npm ci --prefix backend
+# Copy manifests (lock file optional via wildcard)
+COPY backend/package*.json backend/
 
-# Copy backend sources
-COPY backend/tsconfig.json backend/tsconfig.json
+# Install deps (use npm ci if lock exists, else npm install)
+RUN if [ -f backend/package-lock.json ]; then npm ci --prefix backend; else npm install --prefix backend; fi
+
+# Copy sources
+COPY backend/tsconfig.json backend/
 COPY backend/src backend/src
 COPY backend/prisma backend/prisma
 
 # Generate Prisma and build
-RUN npx -w backend prisma generate
-RUN npm run -w backend build
+RUN npx --prefix backend prisma generate
+RUN npm run --prefix backend build
 
-# Prune dev deps for runtime
+# Prune dev deps
 RUN npm prune --omit=dev --prefix backend
 
 FROM node:20-bullseye-slim AS runner

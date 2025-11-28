@@ -6,4 +6,4 @@ coverage
 .DS_Store
 .env
 .env.*
-# DO NOT exclude backend/** or packages/**
+# Keep backend/** and packages/** included
