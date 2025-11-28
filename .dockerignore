@@ -2,10 +2,8 @@
 .git
 .gitignore
 *.log
-dist
 coverage
 .DS_Store
 .env
 .env.*
-testing/
-data/
+# DO NOT exclude backend/** or packages/**

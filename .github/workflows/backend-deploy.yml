@@ -27,28 +27,26 @@ jobs:
       image-uri: ${{ steps.out.outputs.image }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
         with:
-          node-version: 20
-      - name: Build backend
-        run: |
-          sudo apt-get update -y && sudo apt-get install -y openssl
-          cd backend
-          npm install
-          npx prisma generate
-          npm run build
+          fetch-depth: 0
+
+      - uses: docker/setup-buildx-action@v3
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
+
       - name: Ensure ECR repo
         run: |
           aws ecr describe-repositories --repository-names delivery-core-api >/dev/null 2>&1 || \
           aws ecr create-repository --repository-name delivery-core-api --image-scanning-configuration scanOnPush=true --encryption-configuration encryptionType=KMS
-      - name: Build & push
+
+      - name: Build & push image (root context, backend Dockerfile)
         id: out
         run: |
           REPO=delivery-core-api
@@ -58,7 +56,7 @@ jobs:
             TAG_INPUT="$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}"
           fi
           IMAGE="${REGISTRY}/${REPO}:$TAG_INPUT"
-          docker build -t "$IMAGE" backend
+          docker build -f backend/Dockerfile -t "$IMAGE" .
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
 
@@ -67,9 +65,12 @@ jobs:
     needs: build-image
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - name: Read feature config
         id: featurecfg
         run: |
@@ -77,11 +78,13 @@ jobs:
           if [ ! -f "$FILE" ]; then echo "Feature config not found: $FILE" && exit 1; fi
           node -e "const f=require('./$FILE');const e='${{ github.event.inputs.env }}';const o=f.env[e];if(!o){process.exit(1)};for(const k in o){console.log(k+'='+o[k])};console.log('FEATURE_KEY='+f.feature_key)" >> feature_env.txt
           cat feature_env.txt
+
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-            aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
       - name: Render task definition
         run: |
           . feature_env.txt
@@ -98,11 +101,13 @@ jobs:
               -e "s|\${FEATURE_KEY}|$FEATURE_KEY|g" \
               infra/taskdef.template.json > taskdef.json
           cat taskdef.json
+
       - name: Register task definition
         id: reg
         run: |
           REV=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.revision" --output text)
           echo "rev=$REV" >> "$GITHUB_OUTPUT"
+
       - name: Update service
         run: |
           aws ecs update-service \
@@ -110,9 +115,6 @@ jobs:
             --service '${{ github.event.inputs.ecs_service }}' \
             --task-definition core-api-task:${{ steps.reg.outputs.rev }} \
             --force-new-deployment
+
       - name: Wait stable
         run: aws ecs wait services-stable --cluster '${{ github.event.inputs.ecs_cluster }}' --services '${{ github.event.inputs.ecs_service }}'
-      - name: Smoke test (optional)
-        if: ${{ false }} # disable until domain is set
-        run: |
-          curl -fsS https://YOUR_API_DOMAIN/health || (echo "Smoke test failed" && exit 1)
