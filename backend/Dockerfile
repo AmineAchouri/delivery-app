@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 # Copy manifests (lock file optional via wildcard)
 COPY backend/package*.json backend/
 
-# Install deps (use npm ci if lock exists, else npm install)
+# Install deps
 RUN if [ -f backend/package-lock.json ]; then npm ci --prefix backend; else npm install --prefix backend; fi
 
 # Copy sources
@@ -15,8 +15,10 @@ COPY backend/tsconfig.json backend/
 COPY backend/src backend/src
 COPY backend/prisma backend/prisma
 
-# Generate Prisma and build
-RUN npx --prefix backend prisma generate
+# Generate Prisma client (explicit schema path)
+RUN npx --prefix backend prisma generate --schema backend/prisma/schema.prisma
+
+# Build
 RUN npm run --prefix backend build
 
 # Prune dev deps
