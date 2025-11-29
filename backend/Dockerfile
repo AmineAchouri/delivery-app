@@ -14,7 +14,7 @@ RUN if [ -f backend/package-lock.json ]; then npm ci --prefix backend; else npm 
 COPY backend/tsconfig.json backend/
 COPY backend/src backend/src
 COPY backend/prisma backend/prisma
-COPY openapi.yaml ./openapi.yaml
+COPY backend/openapi.yaml ./openapi.yaml
 
 # Debug: confirm schema exists in image
 RUN ls -la backend && ls -la backend/prisma
