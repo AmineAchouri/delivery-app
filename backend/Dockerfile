@@ -37,7 +37,7 @@ COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/prisma ./prisma
 COPY --from=builder /app/backend/package.json ./package.json
-COPY openapi.yaml ./openapi.yaml
+COPY --from=builder /app/openapi.yaml ./openapi.yaml
 
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
