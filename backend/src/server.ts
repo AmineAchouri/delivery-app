@@ -211,9 +211,10 @@ async function getOrCreateCart(prisma: PrismaClient, tenantId: string, userId: s
 
 // Start server
 const PORT = Number(process.env.PORT ?? 3000);
+const HOST = '0.0.0.0'; // <-- add this
 app.use(errorHandler);
-app.listen(PORT, () => {
-  console.log(`API on :${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`API on ${HOST}:${PORT}`);
 });
 
 export default app;
