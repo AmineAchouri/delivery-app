@@ -45,6 +45,5 @@
         "FARGATE"
     ],
         "taskRoleArn": "${TASK_ROLE_ARN}",
-    "volumes": [],
-    "tags": []
+    "volumes": []
 }
