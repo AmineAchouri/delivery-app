@@ -116,6 +116,7 @@ jobs:
       - name: Describe registered task definition
         run: |
           TASKDEF_FAMILY="delivery-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}-core-api"
+          REV="${{ steps.reg.outputs.rev }}"
           aws ecs describe-task-definition --task-definition $TASKDEF_FAMILY:$REV
 
       - name: Update service
