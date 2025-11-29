@@ -89,7 +89,8 @@ jobs:
         run: |
           . feature_env.txt
           IMAGE_URI='${{ needs.build-image.outputs.image-uri }}'
-          sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \
+            TASKDEF_FAMILY="delivery-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}-core-api"
+            sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \
               -e "s|\${AWS_REGION}|us-east-1|g" \
               -e "s|\${EXEC_ROLE_ARN}|${{ secrets.ECS_EXEC_ROLE_ARN }}|g" \
               -e "s|\${TASK_ROLE_ARN}|${{ secrets.ECS_TASK_ROLE_ARN }}|g" \
@@ -99,6 +100,7 @@ jobs:
               -e "s|\${EXTRA_FLAGS}|$EXTRA_FLAGS|g" \
               -e "s|\${DEPLOY_ENV}|${{ github.event.inputs.env }}|g" \
               -e "s|\${FEATURE_KEY}|$FEATURE_KEY|g" \
+              -e "s|\${TASKDEF_FAMILY}|$TASKDEF_FAMILY|g" \
               infra/taskdef.template.json > taskdef.json
           cat taskdef.json
 
@@ -113,7 +115,7 @@ jobs:
           aws ecs update-service \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
             --service '${{ github.event.inputs.ecs_service }}' \
-            --task-definition core-api-task:${{ steps.reg.outputs.rev }} \
+            --task-definition $TASKDEF_FAMILY:${{ steps.reg.outputs.rev }} \
             --force-new-deployment
 
       - name: Wait stable

@@ -37,7 +37,7 @@
     "cpu": "256",
     "enableFaultInjection": false,
         "executionRoleArn": "${EXEC_ROLE_ARN}",
-    "family": "delivery-test-cluster-delivery-core-api-0541",
+    "family": "${TASKDEF_FAMILY}",
     "memory": "1024",
     "networkMode": "awsvpc",
     "placementConstraints": [],
