@@ -109,6 +109,12 @@ jobs:
         run: |
           REV=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.revision" --output text)
           echo "rev=$REV" >> "$GITHUB_OUTPUT"
+      - name: List registered task definitions
+        run: |
+          aws ecs list-task-definitions --family-prefix $TASKDEF_FAMILY
+      - name: Describe registered task definition
+        run: |
+          aws ecs describe-task-definition --task-definition $TASKDEF_FAMILY:$REV
 
       - name: Update service
         run: |
