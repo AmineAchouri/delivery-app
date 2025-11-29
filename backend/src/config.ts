@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const dotenvSafe = require('dotenv-safe');
 dotenvSafe.config({ allowEmptyValues: false });
