@@ -111,9 +111,11 @@ jobs:
           echo "rev=$REV" >> "$GITHUB_OUTPUT"
       - name: List registered task definitions
         run: |
+          TASKDEF_FAMILY="delivery-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}-core-api"
           aws ecs list-task-definitions --family-prefix $TASKDEF_FAMILY
       - name: Describe registered task definition
         run: |
+          TASKDEF_FAMILY="delivery-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}-core-api"
           aws ecs describe-task-definition --task-definition $TASKDEF_FAMILY:$REV
 
       - name: Update service
