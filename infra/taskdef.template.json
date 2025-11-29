@@ -1,9 +1,4 @@
 {
-    "compatibilities": [
-        "EC2",
-        "MANAGED_INSTANCES",
-        "FARGATE"
-    ],
     "containerDefinitions": [
         {
             "cpu": 256,
@@ -46,29 +41,9 @@
     "memory": "1024",
     "networkMode": "awsvpc",
     "placementConstraints": [],
-    "registeredAt": "2025-11-29T22:50:40.032Z",
-    "requiresAttributes": [
-        { "name": "com.amazonaws.ecs.capability.logging-driver.awslogs" },
-        { "name": "ecs.capability.execution-role-awslogs" },
-        { "name": "com.amazonaws.ecs.capability.ecr-auth" },
-        { "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19" },
-        { "name": "com.amazonaws.ecs.capability.docker-remote-api.1.21" },
-        { "name": "com.amazonaws.ecs.capability.task-iam-role" },
-        { "name": "ecs.capability.execution-role-ecr-pull" },
-        { "name": "ecs.capability.secrets.ssm.environment-variables" },
-        { "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18" },
-        { "name": "ecs.capability.task-eni" }
-    ],
     "requiresCompatibilities": [
         "FARGATE"
     ],
-    "revision": 1,
-    "runtimePlatform": {
-        "cpuArchitecture": "X86_64",
-        "operatingSystemFamily": "LINUX"
-    },
-    "status": "ACTIVE",
-    "taskDefinitionArn": "arn:aws:ecs:us-east-1:341124396635:task-definition/delivery-test-cluster-delivery-core-api-0541:1",
         "taskRoleArn": "${TASK_ROLE_ARN}",
     "volumes": [],
     "tags": []
