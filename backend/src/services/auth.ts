@@ -1,35 +1,42 @@
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { JwtClaims } from '../types/jwt';
+import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
+const prisma = new PrismaClient();
 
-function normalizePem(v?: string) {
-  return (v || '').replace(/\\n/g, '\n').trim();
-}
-const PRIVATE_KEY = normalizePem(process.env.JWT_PRIVATE_KEY);
-const PUBLIC_KEY  = normalizePem(process.env.JWT_PUBLIC_KEY);
+const PRIVATE_KEY = (process.env.JWT_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
+const PUBLIC_KEY = (process.env.JWT_PUBLIC_KEY || '').replace(/\\n/g, '\n').trim();
 
-const ISS = process.env.TOKEN_ISS || 'delivery-app';
-const AUD_TENANT = process.env.TOKEN_AUD_TENANT || 'tenant-api';
-const ACCESS_TTL = Number(process.env.ACCESS_TTL_SECONDS || 900);
-const REFRESH_TTL = Number(process.env.REFRESH_TTL_SECONDS || 2592000);
-
-export async function hashPassword(pw: string) {
-  return bcrypt.hash(pw, 10);
-}
-export async function verifyPassword(pw: string, hash: string) {
-  return bcrypt.compare(pw, hash);
+export function signTenantAccess(payload: {
+  sub: string;
+  typ: 'tenant';
+  tenant_id: string;
+  roles: string[];
+  perms: string[];
+}) {
+  return jwt.sign(payload, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '15m' });
 }
 
-export function signTenantAccess(claims: Omit<JwtClaims, 'iat' | 'exp'>) {
-  if (!PRIVATE_KEY.startsWith('-----BEGIN')) throw new Error('Invalid PRIVATE_KEY');
-  const now = Math.floor(Date.now() / 1000);
-  const payload: JwtClaims = { ...claims, iat: now, exp: now + ACCESS_TTL };
-  return jwt.sign(payload, PRIVATE_KEY, { algorithm: 'RS256', issuer: ISS, audience: AUD_TENANT });
+export function signTenantRefresh(userId: string, tenantId: string) {
+  const token = crypto.randomBytes(32).toString('hex'); // opaque refresh
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  return prisma.refreshToken.create({
+    data: { user_id: userId, tenant_id: tenantId, token_hash: hash }
+  }).then(() => token);
 }
 
-export function signTenantRefresh(sub: string, tenant_id: string) {
-  if (!PRIVATE_KEY.startsWith('-----BEGIN')) throw new Error('Invalid PRIVATE_KEY');
-  const now = Math.floor(Date.now() / 1000);
-  const payload = { sub, typ: 'tenant', tenant_id, iat: now, exp: now + REFRESH_TTL, refresh: true } as any;
-  return jwt.sign(payload, PRIVATE_KEY, { algorithm: 'RS256', issuer: ISS, audience: AUD_TENANT });
+export async function verifyRefreshAndRotate(refreshToken: string) {
+  const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  const existing = await prisma.refreshToken.findFirst({ where: { token_hash: hash, revoked_at: null } });
+  if (!existing) return null;
+  // rotate: revoke old, issue new
+  await prisma.refreshToken.update({ where: { refresh_token_id: existing.refresh_token_id }, data: { revoked_at: new Date() } });
+  const newToken = crypto.randomBytes(32).toString('hex');
+  const newHash = crypto.createHash('sha256').update(newToken).digest('hex');
+  await prisma.refreshToken.create({ data: { user_id: existing.user_id, tenant_id: existing.tenant_id, token_hash: newHash } });
+  return { user_id: existing.user_id, tenant_id: existing.tenant_id, refresh_token: newToken };
+}
+
+export async function verifyPassword(plain: string, hash: string) {
+  const bcrypt = await import('bcryptjs');
+  return bcrypt.compare(plain, hash);
 }

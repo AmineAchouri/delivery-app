@@ -12,34 +12,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Tenant {
-  tenant_id     String   @id @default(uuid())
-  name          String
-  domain        String   @unique
-  status        String
-  currency_code String
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
-
-  users         User[]
-  roles         Role[]
-  features      TenantFeature[]
-  settings      TenantSetting[]
-  menus         Menu[]
-  offers        Offer[]
-  media         Media[]
-  auditLogs     AuditLog[]
-
-  // Added opposites for models that also reference Tenant
-  userRoles       UserRole[]
-  rolePermissions RolePermission[]
-  menuCategories  MenuCategory[]
-  menuItems       MenuItem[]
-  addresses       Address[]
-  orders          Order[]
-  mediaLinks      MediaLink[]
-}
-
 model Permission {
   permission_id String @id @default(uuid())
   name          String @unique
@@ -64,6 +36,8 @@ model User {
   addresses  Address[]
   orders     Order[]
   auditLogs  AuditLog[]
+  // Back-relation for RefreshToken
+  refreshTokens RefreshToken[]
 
   @@unique([tenant_id, email], name: "tenant_id_email")
 }
@@ -114,6 +88,35 @@ model Feature {
   default_enabled Boolean
   description     String?
   tenants         TenantFeature[]
+}
+
+model Tenant {
+  tenant_id     String   @id @default(uuid())
+  name          String
+  domain        String   @unique
+  status        String
+  currency_code String
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  users         User[]
+  roles         Role[]
+  features      TenantFeature[]
+  settings      TenantSetting[]
+  menus         Menu[]
+  offers        Offer[]
+  media         Media[]
+  auditLogs     AuditLog[]
+  // Added opposites for models that also reference Tenant
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+  menuCategories  MenuCategory[]
+  menuItems       MenuItem[]
+  addresses       Address[]
+  orders          Order[]
+  mediaLinks      MediaLink[]
+  // Back-relation for RefreshToken
+  refreshTokens   RefreshToken[]
 }
 
 model TenantFeature {
@@ -275,4 +278,19 @@ model AuditLog {
 
   tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
   user   User?  @relation(fields: [user_id], references: [user_id], onDelete: SetNull)
+}
+
+// Refresh tokens model
+model RefreshToken {
+  refresh_token_id String   @id @default(uuid())
+  user_id          String
+  tenant_id        String
+  token_hash       String   @unique
+  created_at       DateTime @default(now())
+  revoked_at       DateTime?
+
+  user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@index([user_id, tenant_id])
 }

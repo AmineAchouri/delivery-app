@@ -1,0 +1,90 @@
+Here’s a concise backlog for the remaining backend work, aligned with your plan and current code.
+
+Core API endpoints (tenant-scoped)
+
+Auth
+POST /auth/refresh (issue new access from refresh)
+POST /auth/logout (revoke/rotate refresh)
+GET /me (current user, roles, perms)
+Users/Roles/Permissions
+GET /roles (list roles+permissions) [requirePermission('roles:read')]
+POST /roles (create) [roles:write]
+PATCH /roles/:id (update) [roles:write]
+GET /users (list) [users:read]
+PATCH /users/:id (assign roles, status) [users:write]
+Menus/Items/Categories
+GET /menus/:menuId/items
+GET /items/:id
+GET /categories
+Admin CRUD: POST/PATCH/DELETE for menus/items/categories [menu:write, items:write]
+Cart
+GET /cart
+POST /cart/items
+PATCH /cart/items/:id
+DELETE /cart/items/:id
+Orders
+POST /orders (create from cart)
+GET /orders (user’s orders)
+GET /orders/:id
+PATCH /orders/:id/status [orders:update]
+Delivery
+GET /orders/:id/track
+POST /orders/:id/assign-driver [delivery:assign]
+GET /drivers/me/stops
+Payments (stubbed to start)
+POST /payments/intent
+POST /payments/confirm
+Settings/Features
+GET /features (feature flags per tenant, with ETag)
+GET /settings (tenant settings) [settings:read]
+Middleware and cross-cutting
+
+finalize tenantContext (X-Tenant-ID header + fallback to JWT claim)
+requirePermission (role/perm set from JWT; support feature-flag check)
+request logging with correlation IDs
+rate limiting (per IP/tenant if behind ALB/API Gateway)
+Prisma schema and data
+
+Complete models: users, roles, role_permissions, permissions, menus, categories, items, carts, cart_items, orders, order_items, deliveries, features, settings, refresh_tokens
+Migrations: initial + indexes/uniques
+Seed data: permissions, default roles (OWNER, STAFF, DELIVERY_AGENT, CUSTOMER), default features (PAYMENT, DELIVERY_TRACKING, WEB_CLIENT, ANALYTICS, INVOICING)
+Security and tokens
+
+RS256 keys in KMS/SSM; wire JWT_PRIVATE_KEY/JWT_PUBLIC_KEY
+Refresh token store/rotation, revocation list
+Password reset flow (tokens, expiry)
+Optional: OTP for delivery agent onboarding
+Media (Lambda integration later)
+
+Signed URL endpoint: POST /media/upload-url (S3: media-uploads)
+Image processing Lambda (resize, move to media-public) — define event, IAM, and callback/metadata
+Operational/CI
+
+Unit tests (auth, tenant scoping, menus, cart, orders)
+Integration tests with a test DB
+GitHub Actions:
+lint/test
+prisma migrate deploy before ECS update
+build/push ECR and ECS deploy (already in place; add migrate)
+Observability:
+CloudWatch logs formatting
+Basic metrics (orders/hour), error alerts
+Deployment/IaC
+
+Task definition env: DATABASE_URL, JWT keys, FEATURE flags via SSM
+Optional ALB+TG for stable public URL (health path /health)
+IAM least-privilege for ECR/ECS/S3/SSM/KMS
+Infra scripts to create/update SSM parameters per env
+Documentation
+
+OpenAPI spec for all endpoints (packages/shared schemas)
+README with setup, env vars, curl examples
+ERD update and permissions matrix
+Prioritized next sprint (suggested)
+
+Finish auth: /auth/refresh, /me, refresh store
+Menus/Items endpoints (+ basic admin CRUD)
+Cart + POST /orders
+GET /features, GET /settings with ETag
+Prisma migrations + seed defaults
+CI: migrate + smoke test on deploy

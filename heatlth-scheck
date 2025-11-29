@@ -1,0 +1,57 @@
+# AWS ECS health check and access script for delivery-test-cluster / core-api
+
+param(
+  [string]$Region = "us-east-1",
+  [string]$Cluster = "delivery-test-cluster",
+  [string]$Service = "core-api"
+)
+
+Write-Host "Setting AWS default region to $Region"
+aws configure set region $Region
+aws configure set output json
+
+Write-Host "Caller identity:"
+aws sts get-caller-identity
+
+Write-Host "Service status:"
+aws ecs describe-services --cluster $Cluster --services $Service --query "services[0].{desired:desiredCount,running:runningCount,lb:loadBalancers}"
+
+Write-Host "Finding running task..."
+$taskArn = aws ecs list-tasks --cluster $Cluster --service-name $Service --desired-status RUNNING --query "taskArns[0]" --output text
+if (-not $taskArn) { Write-Error "No running tasks found."; exit 1 }
+
+Write-Host "Describing task: $taskArn"
+$eniId = aws ecs describe-tasks --cluster $Cluster --tasks $taskArn --query "tasks[0].attachments[0].details[?name=='networkInterfaceId'].value" --output text
+if (-not $eniId) { Write-Error "No ENI found for task."; exit 1 }
+
+$eniInfo = aws ec2 describe-network-interfaces --network-interface-ids $eniId --query "NetworkInterfaces[0].{PrivateIp:PrivateIpAddress,PublicIp:Association.PublicIp,SubnetId:SubnetId,SG:Groups[0].GroupId}"
+$pubIp = $eniInfo.PublicIp
+$privIp = $eniInfo.PrivateIp
+$sgId  = $eniInfo.SG
+
+Write-Host "ENI: $eniId"
+Write-Host "Public IP: $pubIp"
+Write-Host "Private IP: $privIp"
+Write-Host "Security Group: $sgId"
+
+if (-not $pubIp -or $pubIp -eq "None") {
+  Write-Warning "Task has no public IP. You need an ALB/Target Group or enable assignPublicIp on the service."
+  exit 0
+}
+
+Write-Host "Authorizing inbound TCP 3000 on SG $sgId (0.0.0.0/0). Consider tightening later."
+try {
+  aws ec2 authorize-security-group-ingress --group-id $sgId --protocol tcp --port 3000 --cidr 0.0.0.0/0 | Out-Null
+} catch {
+  Write-Warning "Ingress rule may already exist or failed: $_"
+}
+
+$healthUrl = "http://$pubIp:3000/health"
+Write-Host "Checking health: $healthUrl"
+try {
+  $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 10
+  Write-Host "Status: $($resp.StatusCode) - $($resp.StatusDescription)"
+  Write-Host "Body: $($resp.Content)"
+} catch {
+  Write-Error "Health check failed: $_"
+}
