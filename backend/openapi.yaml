@@ -1,0 +1,174 @@
+openapi: 3.0.3
+info:
+  title: Delivery App API
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      summary: Login
+      parameters:
+        - in: header
+          name: X-Tenant-ID
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Tokens
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  refresh_token: { type: string }
+  /features:
+    get:
+      summary: Tenant features
+      responses:
+        '200':
+          description: Feature flags
+  /settings:
+    get:
+      summary: Tenant settings
+      responses:
+        '200':
+          description: Settings map
+  /menus:
+    get:
+      summary: Menus
+      responses:
+        '200':
+          description: Menu list
+  /menus/{menuId}/categories:
+    get:
+      summary: Categories by menu
+      parameters:
+        - in: path
+          name: menuId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Category list
+  /categories/{categoryId}/items:
+    get:
+      summary: Items by category
+      parameters:
+        - in: path
+          name: categoryId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Item list
+  /items/{itemId}:
+    get:
+      summary: Get item
+      parameters:
+        - in: path
+          name: itemId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Item
+        '404':
+          description: Not found
+  /cart:
+    get:
+      summary: Get cart
+      responses:
+        '200':
+          description: Cart
+  /cart/items:
+    post:
+      summary: Add item to cart
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id, qty]
+              properties:
+                item_id:
+                  oneOf:
+                    - { type: string, format: uuid }
+                    - { type: array, items: { type: string, format: uuid } }
+                qty: { type: integer, minimum: 1 }
+      responses:
+        '201':
+          description: Added
+  /cart/items/{id}:
+    patch:
+      summary: Update cart item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [qty]
+              properties:
+                qty: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete cart item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '204':
+          description: Deleted
+  /orders:
+    get:
+      summary: List orders
+      responses:
+        '200':
+          description: Orders
+    post:
+      summary: Checkout (create order)
+      responses:
+        '201':
+          description: Created
+  /orders/{id}:
+    get:
+      summary: Get order
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Order
+        '404':
+          description: Not found

@@ -7,16 +7,17 @@
 generator client {
   provider = "prisma-client-js"
 }
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Permission {
-  permission_id String @id @default(uuid())
-  name          String @unique
-  description   String?
-  scope         String
+  permission_id   String           @id @default(uuid())
+  name            String           @unique
+  description     String?
+  scope           String
   // Added opposite
   rolePermissions RolePermission[]
 }
@@ -31,24 +32,25 @@ model User {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  tenant     Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
-  roles      UserRole[]
-  addresses  Address[]
-  orders     Order[]
-  auditLogs  AuditLog[]
-  // Back-relation for RefreshToken
+  tenant        Tenant         @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  roles         UserRole[]
+  addresses     Address[]
+  orders        Order[]
+  auditLogs     AuditLog[]
   refreshTokens RefreshToken[]
+  // Back-relation for Cart
+  carts         Cart[]
 
   @@unique([tenant_id, email], name: "tenant_id_email")
 }
 
 model Role {
-  role_id     String   @id @default(uuid())
+  role_id     String  @id @default(uuid())
   tenant_id   String
   name        String
   description String?
 
-  tenant      Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  tenant      Tenant           @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
   users       UserRole[]
   permissions RolePermission[]
 
@@ -83,8 +85,8 @@ model RolePermission {
 }
 
 model Feature {
-  feature_id      String @id @default(uuid())
-  feature_key     String @unique
+  feature_id      String          @id @default(uuid())
+  feature_key     String          @unique
   default_enabled Boolean
   description     String?
   tenants         TenantFeature[]
@@ -99,15 +101,14 @@ model Tenant {
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 
-  users         User[]
-  roles         Role[]
-  features      TenantFeature[]
-  settings      TenantSetting[]
-  menus         Menu[]
-  offers        Offer[]
-  media         Media[]
-  auditLogs     AuditLog[]
-  // Added opposites for models that also reference Tenant
+  users           User[]
+  roles           Role[]
+  features        TenantFeature[]
+  settings        TenantSetting[]
+  menus           Menu[]
+  offers          Offer[]
+  media           Media[]
+  auditLogs       AuditLog[]
   userRoles       UserRole[]
   rolePermissions RolePermission[]
   menuCategories  MenuCategory[]
@@ -115,15 +116,19 @@ model Tenant {
   addresses       Address[]
   orders          Order[]
   mediaLinks      MediaLink[]
-  // Back-relation for RefreshToken
   refreshTokens   RefreshToken[]
+  // Back-relations for Cart and CartItem
+  carts           Cart[]
+  cartItems       CartItem[]
+  // Add back-relation for OrderItem
+  orderItems      OrderItem[]
 }
 
 model TenantFeature {
-  tenant_feature_id String  @id @default(uuid())
+  tenant_feature_id String   @id @default(uuid())
   tenant_id         String
   feature_id        String
-  is_enabled        Boolean @default(false)
+  is_enabled        Boolean  @default(false)
   config            Json?
   updated_at        DateTime @updatedAt
 
@@ -134,7 +139,7 @@ model TenantFeature {
 }
 
 model TenantSetting {
-  tenant_setting_id String  @id @default(uuid())
+  tenant_setting_id String   @id @default(uuid())
   tenant_id         String
   key               String
   value             Json
@@ -153,21 +158,21 @@ model Menu {
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
 
-  tenant      Tenant        @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
-  categories  MenuCategory[]
+  tenant     Tenant         @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  categories MenuCategory[]
 
   @@unique([tenant_id, name])
 }
 
 model MenuCategory {
-  category_id String  @id @default(uuid())
+  category_id String @id @default(uuid())
   tenant_id   String
   menu_id     String
   name        String
-  order_index Int     @default(0)
+  order_index Int    @default(0)
 
-  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
-  menu   Menu   @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade)
+  tenant Tenant     @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  menu   Menu       @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade)
   items  MenuItem[]
 
   @@unique([menu_id, name, tenant_id])
@@ -183,14 +188,18 @@ model MenuItem {
   is_available Boolean  @default(true)
   created_at   DateTime @default(now())
 
-  tenant   Tenant       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
-  category MenuCategory @relation(fields: [category_id], references: [category_id], onDelete: Cascade)
+  tenant     Tenant       @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  category   MenuCategory @relation(fields: [category_id], references: [category_id], onDelete: Cascade)
+  // Back-relation for CartItem
+  cartItems  CartItem[]
+  // Add back-relation for OrderItem
+  orderItems OrderItem[]
 
   @@unique([category_id, name, tenant_id])
 }
 
 model Offer {
-  offer_id        String   @id @default(uuid())
+  offer_id        String    @id @default(uuid())
   tenant_id       String
   name            String
   description     String?
@@ -199,7 +208,7 @@ model Offer {
   min_order_value Decimal?
   start_date      DateTime
   end_date        DateTime?
-  is_active       Boolean  @default(true)
+  is_active       Boolean   @default(true)
 
   tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
 
@@ -207,7 +216,7 @@ model Offer {
 }
 
 model Address {
-  address_id String  @id @default(uuid())
+  address_id String @id @default(uuid())
   tenant_id  String
   user_id    String
   street     String
@@ -222,22 +231,40 @@ model Address {
 }
 
 model Order {
-  order_id            String   @id @default(uuid())
-  tenant_id           String
-  user_id             String
-  order_status        String
-  payment_status      String
-  subtotal            Decimal
-  tax                 Decimal
-  discount            Decimal
-  total               Decimal
-  delivery_address_id String?
-  currency_code       String
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
+  order_id       String   @id @default(uuid())
+  tenant_id      String
+  user_id        String
+  order_status   String
+  payment_status String
+  subtotal       Decimal
+  tax            Decimal
+  discount       Decimal
+  total          Decimal
+  currency_code  String
+  created_at     DateTime @default(now())
 
   tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
   user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+
+  // Back-relation for OrderItem
+  items OrderItem[]
+}
+
+model OrderItem {
+  order_item_id String  @id @default(uuid())
+  order_id      String
+  tenant_id     String
+  item_id       String
+  name          String
+  qty           Int
+  unit_price    Decimal
+  line_total    Decimal
+
+  order  Order    @relation(fields: [order_id], references: [order_id], onDelete: Cascade)
+  tenant Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  item   MenuItem @relation(fields: [item_id], references: [item_id])
+
+  @@index([order_id])
 }
 
 model Media {
@@ -248,7 +275,7 @@ model Media {
   source     String
   created_at DateTime @default(now())
 
-  tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  tenant Tenant      @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
   links  MediaLink[]
 }
 
@@ -282,15 +309,46 @@ model AuditLog {
 
 // Refresh tokens model
 model RefreshToken {
-  refresh_token_id String   @id @default(uuid())
+  refresh_token_id String    @id @default(uuid())
   user_id          String
   tenant_id        String
-  token_hash       String   @unique
-  created_at       DateTime @default(now())
+  token_hash       String    @unique
+  created_at       DateTime  @default(now())
   revoked_at       DateTime?
 
   user   User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   tenant Tenant @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
 
   @@index([user_id, tenant_id])
+}
+
+model Cart {
+  cart_id    String   @id @default(uuid())
+  tenant_id  String
+  user_id    String
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user   User       @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  tenant Tenant     @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+  items  CartItem[]
+
+  @@unique([tenant_id, user_id])
+}
+
+model CartItem {
+  cart_item_id String   @id @default(uuid())
+  cart_id      String
+  tenant_id    String
+  item_id      String
+  qty          Int      @default(1)
+  price        Decimal // snapshot of item price at add time
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  cart   Cart     @relation(fields: [cart_id], references: [cart_id], onDelete: Cascade)
+  item   MenuItem @relation(fields: [item_id], references: [item_id], onDelete: Cascade)
+  tenant Tenant   @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([cart_id, item_id])
 }
