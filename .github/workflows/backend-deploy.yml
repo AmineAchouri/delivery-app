@@ -121,10 +121,12 @@ jobs:
 
       - name: Update service
         run: |
+          TASKDEF_FAMILY="delivery-${{ github.event.inputs.env }}-${{ github.event.inputs.feature }}-core-api"
+          REV="${{ steps.reg.outputs.rev }}"
           aws ecs update-service \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
             --service '${{ github.event.inputs.ecs_service }}' \
-            --task-definition $TASKDEF_FAMILY:${{ steps.reg.outputs.rev }} \
+            --task-definition $TASKDEF_FAMILY:$REV \
             --force-new-deployment
 
       - name: Wait stable
