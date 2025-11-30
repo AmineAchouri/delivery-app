@@ -12,6 +12,10 @@ RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 # Copy source code
 COPY . .
 
+# Accept build argument for backend API URL
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Build the Next.js application
 RUN npm run build
 
@@ -34,7 +38,6 @@ EXPOSE 80
 # Set environment variables
 ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
-ENV NEXT_PUBLIC_API_URL=""
 
 # Start the application
 CMD ["node", "server.js"]

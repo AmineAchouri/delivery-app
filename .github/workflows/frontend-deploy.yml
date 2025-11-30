@@ -56,7 +56,14 @@ jobs:
             TAG_INPUT="$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}"
           fi
           IMAGE="$REGISTRY/$REPO:$TAG_INPUT"
-          docker build -f admin/Dockerfile -t "$IMAGE" ./admin
+          BACKEND_API_URL="${{ github.event.inputs.backend_api_url }}"
+          
+          # Build with backend API URL as build argument
+          docker build -f admin/Dockerfile \
+            --build-arg NEXT_PUBLIC_API_URL="$BACKEND_API_URL" \
+            -t "$IMAGE" \
+            ./admin
+          
           docker push "$IMAGE"
           echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
   deploy-ecs:
@@ -75,16 +82,10 @@ jobs:
         run: |
           IMAGE_URI='${{ needs.build-image.outputs.image-uri }}'
           LOG_GROUP="${{ secrets.ECS_LOG_GROUP }}"
-          BACKEND_API_URL="${{ github.event.inputs.backend_api_url }}"
           
           # Use default log group if not provided
           if [ -z "$LOG_GROUP" ]; then
             LOG_GROUP="/aws/ecs/delivery-frontend-${{ github.event.inputs.env }}"
-          fi
-          
-          # Use default backend API URL if not provided (empty for now, can be set later)
-          if [ -z "$BACKEND_API_URL" ]; then
-            BACKEND_API_URL=""
           fi
           
           sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \
@@ -92,7 +93,6 @@ jobs:
               -e "s|\${EXEC_ROLE_ARN}|${{ secrets.ECS_EXEC_ROLE_ARN }}|g" \
               -e "s|\${TASK_ROLE_ARN}|${{ secrets.ECS_TASK_ROLE_ARN }}|g" \
               -e "s|\${LOG_GROUP}|$LOG_GROUP|g" \
-              -e "s|\${BACKEND_API_URL}|$BACKEND_API_URL|g" \
               -e "s|\${TASKDEF_FAMILY}|delivery-frontend-${{ github.event.inputs.env }}|g" \
               infra/admin-frontend-taskdef.template.json > taskdef.json
           cat taskdef.json
