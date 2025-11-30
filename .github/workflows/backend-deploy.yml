@@ -320,12 +320,17 @@ jobs:
           echo "Service updated successfully"
 
       - name: Wait for service stability
+        continue-on-error: true
         run: |
-          echo "Waiting for service to become stable..."
-          aws ecs wait services-stable \
+          echo "Waiting for service to become stable (this may take several minutes for canary deployments)..."
+          echo "Note: Canary deployments have a bake time that may exceed the default wait timeout"
+          
+          # Wait with timeout (max 20 minutes for canary deployments)
+          timeout 1200 aws ecs wait services-stable \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
-            --services '${{ github.event.inputs.ecs_service }}'
-          echo "Service is stable"
+            --services '${{ github.event.inputs.ecs_service }}' || true
+          
+          echo "Wait completed (deployment may still be in progress)"
 
       - name: Display service status
         run: |

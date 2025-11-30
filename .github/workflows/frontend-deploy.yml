@@ -16,14 +16,11 @@ on:
       ecs_service:
         description: ECS service name
         required: true
-      vpc_subnets:
-        description: Comma-separated subnet IDs for service (required for new service)
-        required: false
-      security_groups:
-        description: Comma-separated security group IDs for service (required for new service)
-        required: false
       target_group_arn:
         description: Target group ARN for load balancer (optional)
+        required: false
+      vpc_id:
+        description: VPC ID (optional, will auto-detect default VPC if not provided)
         required: false
       backend_api_url:
         description: Backend API URL (e.g., https://api.example.com or http://internal-alb.us-east-1.elb.amazonaws.com)
@@ -171,8 +168,84 @@ jobs:
             echo "Service exists"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Service does not exist"
+            echo "Service does not exist - will auto-discover AWS resources"
           fi
+      
+      - name: Auto-discover AWS resources for new service
+        id: discover_resources
+        if: steps.check_service.outputs.exists == 'false'
+        run: |
+          echo "=== Auto-discovering AWS Resources ==="
+          
+          # Determine VPC ID
+          if [ -n "${{ github.event.inputs.vpc_id }}" ]; then
+            VPC_ID="${{ github.event.inputs.vpc_id }}"
+            echo "Using provided VPC: $VPC_ID"
+          else
+            echo "No VPC provided, using default VPC..."
+            VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+            if [ "$VPC_ID" = "None" ] || [ -z "$VPC_ID" ]; then
+              echo "No default VPC found, using first available VPC..."
+              VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+            fi
+            echo "Auto-detected VPC: $VPC_ID"
+          fi
+          
+          # Get subnets from VPC
+          echo "Finding subnets in VPC $VPC_ID..."
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query 'Subnets[*].SubnetId' \
+            --output text | tr '\t' ',')
+          
+          if [ -z "$SUBNETS" ]; then
+            echo "ERROR: No subnets found in VPC $VPC_ID"
+            exit 1
+          fi
+          
+          echo "Found subnets: $SUBNETS"
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          
+          # Check or create security group for frontend
+          SG_NAME="delivery-frontend-${{ github.event.inputs.env }}-sg"
+          echo "Looking for security group: $SG_NAME"
+          
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=$SG_NAME" "Name=vpc-id,Values=$VPC_ID" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text 2>/dev/null)
+          
+          if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+            echo "Security group not found, creating new one..."
+            SG_ID=$(aws ec2 create-security-group \
+              --group-name "$SG_NAME" \
+              --description "Security group for delivery frontend (${{ github.event.inputs.env }})" \
+              --vpc-id "$VPC_ID" \
+              --query 'GroupId' \
+              --output text)
+            
+            echo "Created security group: $SG_ID"
+            
+            # Allow inbound traffic on port 80
+            echo "Adding inbound rule for port 80..."
+            aws ec2 authorize-security-group-ingress \
+              --group-id "$SG_ID" \
+              --protocol tcp \
+              --port 80 \
+              --cidr 0.0.0.0/0
+            
+            echo "Security group configured"
+          else
+            echo "Found existing security group: $SG_ID"
+          fi
+          
+          echo "security_group=$SG_ID" >> "$GITHUB_OUTPUT"
+          echo "vpc_id=$VPC_ID" >> "$GITHUB_OUTPUT"
+          
+          echo "=== Resource Discovery Complete ==="
+          echo "VPC: $VPC_ID"
+          echo "Subnets: $SUBNETS"
+          echo "Security Group: $SG_ID"
       
       - name: Create service if not exists
         if: steps.check_service.outputs.exists == 'false'
@@ -180,15 +253,14 @@ jobs:
           TASKDEF_FAMILY="delivery-frontend-${{ github.event.inputs.env }}"
           REV="${{ steps.final_rev.outputs.revision }}"
           
-          # Check if required parameters are provided
-          if [ -z "${{ github.event.inputs.vpc_subnets }}" ] || [ -z "${{ github.event.inputs.security_groups }}" ]; then
-            echo "Error: vpc_subnets and security_groups are required to create a new service"
-            exit 1
-          fi
+          # Use auto-discovered resources
+          SUBNETS="${{ steps.discover_resources.outputs.subnets }}"
+          SECURITY_GROUP="${{ steps.discover_resources.outputs.security_group }}"
           
-          # Build network configuration
-          SUBNETS="${{ github.event.inputs.vpc_subnets }}"
-          SECURITY_GROUPS="${{ github.event.inputs.security_groups }}"
+          echo "Creating ECS service with:"
+          echo "  Task Definition: $TASKDEF_FAMILY:$REV"
+          echo "  Subnets: $SUBNETS"
+          echo "  Security Group: $SECURITY_GROUP"
           
           # Base create-service command
           CREATE_CMD="aws ecs create-service \
@@ -197,10 +269,11 @@ jobs:
             --task-definition $TASKDEF_FAMILY:$REV \
             --desired-count 1 \
             --launch-type FARGATE \
-            --network-configuration 'awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}'"
+            --network-configuration 'awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}'"
           
           # Add load balancer if target group is provided
           if [ -n "${{ github.event.inputs.target_group_arn }}" ]; then
+            echo "  Load Balancer Target Group: ${{ github.event.inputs.target_group_arn }}"
             CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=frontend,containerPort=80"
           fi
           
