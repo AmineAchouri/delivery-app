@@ -35,8 +35,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { API_ENDPOINTS } from '@/config/api';
-import { TENANT_ID } from '@/config/constants';
+import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface Customer {
   id: string;
@@ -126,38 +128,53 @@ const statusColors = {
 
 export default function CustomersPage() {
   const router = useRouter();
+  const { selectedTenant } = useAuth();
+  const authFetch = useAuthenticatedFetch();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [viewingCustomer, setViewingCustomer] = useState<Customer | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    status: 'active' as 'active' | 'inactive' | 'blocked'
+  });
   const itemsPerPage = 10;
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
+    if (selectedTenant) {
+      loadCustomers();
     }
-    loadCustomers();
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTenant?.tenant_id]);
 
   const loadCustomers = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(API_ENDPOINTS.CUSTOMERS.LIST, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': TENANT_ID,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const res = await authFetch(`${API_BASE_URL}/api/tenant/customers`);
 
       if (res.ok) {
         const data = await res.json();
-        setCustomers(Array.isArray(data) ? data : data.customers || mockCustomers);
+        // Map API response to Customer interface
+        const customerData: Customer[] = (data.data || []).map((c: any) => ({
+          id: c.id,
+          name: c.email.split('@')[0], // Use email prefix as name if no name field
+          email: c.email,
+          phone: c.phone || '',
+          total_orders: c.orderCount || 0,
+          total_spent: 0, // Would need to calculate from orders
+          status: c.status === 'active' ? 'active' : 'inactive',
+          created_at: c.createdAt,
+          last_order_at: c.lastActive
+        }));
+        setCustomers(customerData.length > 0 ? customerData : mockCustomers);
       } else {
         // Use mock data if API not available
         setCustomers(mockCustomers);
@@ -194,11 +211,10 @@ export default function CustomersPage() {
     });
   };
 
+  const { formatPrice } = useCurrency();
+  
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return formatPrice(amount);
   };
 
   const toggleSelectAll = () => {
@@ -213,6 +229,110 @@ export default function CustomersPage() {
     setSelectedCustomers((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+  };
+
+  const openAddModal = () => {
+    setEditingCustomer(null);
+    setFormData({ name: '', email: '', phone: '', address: '', status: 'active' });
+    setShowModal(true);
+  };
+
+  const openEditModal = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setFormData({
+      name: customer.name,
+      email: customer.email,
+      phone: customer.phone || '',
+      address: customer.address || '',
+      status: customer.status
+    });
+    setShowModal(true);
+  };
+
+  const openViewModal = (customer: Customer) => {
+    setViewingCustomer(customer);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingCustomer(null);
+    setViewingCustomer(null);
+  };
+
+  const handleSaveCustomer = async () => {
+    try {
+      if (editingCustomer) {
+        // Update existing customer via API
+        const res = await authFetch(`${API_BASE_URL}/api/tenant/customers/${editingCustomer.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        if (res.ok) {
+          const updated = await res.json();
+          setCustomers(customers.map(c => c.id === editingCustomer.id ? {
+            ...c,
+            name: updated.name,
+            email: updated.email,
+            phone: updated.phone,
+            status: updated.status
+          } : c));
+          closeModal();
+        } else {
+          const error = await res.json();
+          alert(error.error || 'Failed to update customer');
+        }
+      } else {
+        // Create new customer via API
+        const res = await authFetch(`${API_BASE_URL}/api/tenant/customers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        if (res.ok) {
+          const newCustomer = await res.json();
+          setCustomers([...customers, {
+            id: newCustomer.id,
+            name: newCustomer.name,
+            email: newCustomer.email,
+            phone: newCustomer.phone || '',
+            status: newCustomer.status,
+            total_orders: 0,
+            total_spent: 0,
+            created_at: newCustomer.createdAt
+          }]);
+          closeModal();
+        } else {
+          const error = await res.json();
+          alert(error.error || 'Failed to create customer');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to save customer:', error);
+      alert('Failed to save customer');
+    }
+  };
+
+  const handleDeleteCustomer = async (customerId: string) => {
+    if (!confirm('Are you sure you want to delete this customer?')) return;
+    
+    try {
+      const res = await authFetch(`${API_BASE_URL}/api/tenant/customers/${customerId}`, {
+        method: 'DELETE'
+      });
+      
+      if (res.ok) {
+        setCustomers(customers.filter(c => c.id !== customerId));
+      } else {
+        const error = await res.json();
+        alert(error.error || 'Failed to delete customer');
+      }
+    } catch (error) {
+      console.error('Failed to delete customer:', error);
+      alert('Failed to delete customer');
+    }
   };
 
   // Stats cards data
@@ -334,7 +454,7 @@ export default function CustomersPage() {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
-          <Button size="sm" className="flex-1 sm:flex-none bg-primary-600 hover:bg-primary-700 text-white">
+          <Button size="sm" className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white" onClick={openAddModal}>
             <UserPlus className="h-4 w-4 mr-2" />
             Add Customer
           </Button>
@@ -439,13 +559,22 @@ export default function CustomersPage() {
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
                       <div className="absolute right-0 top-full mt-1 w-36 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-10 hidden group-hover:block">
-                        <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                        <button 
+                          onClick={() => openViewModal(customer)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                        >
                           <Eye className="h-4 w-4" /> View
                         </button>
-                        <button className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2">
+                        <button 
+                          onClick={() => openEditModal(customer)}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                        >
                           <Edit className="h-4 w-4" /> Edit
                         </button>
-                        <button className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                        <button 
+                          onClick={() => handleDeleteCustomer(customer.id)}
+                          className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                        >
                           <Trash2 className="h-4 w-4" /> Delete
                         </button>
                       </div>
@@ -489,7 +618,7 @@ export default function CustomersPage() {
                 variant={currentPage === i + 1 ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setCurrentPage(i + 1)}
-                className={currentPage === i + 1 ? 'bg-primary-600 text-white' : ''}
+                className=""
               >
                 {i + 1}
               </Button>
@@ -502,6 +631,139 @@ export default function CustomersPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Customer Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+              {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
+            </h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  placeholder="Customer name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email *</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  placeholder="customer@example.com"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  placeholder="+1 234 567 8900"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  placeholder="123 Main St, City"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="blocked">Blocked</option>
+                </select>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" onClick={closeModal} className="flex-1">Cancel</Button>
+              <Button onClick={handleSaveCustomer} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+                {editingCustomer ? 'Save Changes' : 'Add Customer'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Customer Modal */}
+      {viewingCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Customer Details</h2>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar src={viewingCustomer.avatar} fallback={viewingCustomer.name} size="lg" />
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{viewingCustomer.name}</h3>
+                  <p className="text-sm text-gray-500">{viewingCustomer.email}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div>
+                  <p className="text-sm text-gray-500">Phone</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCustomer.phone || 'N/A'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Status</p>
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[viewingCustomer.status]}`}>
+                    {viewingCustomer.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Orders</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCustomer.total_orders}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Total Spent</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatCurrency(viewingCustomer.total_spent)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Loyalty Points</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCustomer.loyalty_points || 0}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Member Since</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDate(viewingCustomer.created_at)}</p>
+                </div>
+              </div>
+              {viewingCustomer.address && (
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-sm text-gray-500">Address</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCustomer.address}</p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" onClick={closeModal} className="flex-1">Close</Button>
+              <Button onClick={() => { closeModal(); openEditModal(viewingCustomer); }} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+                Edit Customer
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -173,18 +173,25 @@ export default function NotificationsPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => {
-      setSettings(defaultSettings);
-      setLoading(false);
-    }, 500);
+    
+    // Load from localStorage or use defaults
+    const savedSettings = localStorage.getItem('notificationSettings');
+    setSettings(savedSettings ? JSON.parse(savedSettings) : defaultSettings);
+    setLoading(false);
   }, [router]);
 
   const handleSave = async () => {
     setSaving(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      localStorage.setItem('notificationSettings', JSON.stringify(settings));
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (error) {
+      console.error('Failed to save:', error);
+      alert('Failed to save notification settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleSetting = (id: string, channel: 'email' | 'push' | 'sms') => {
@@ -235,7 +242,7 @@ export default function NotificationsPage() {
           onClick={handleSave} 
           disabled={saving}
           className={cn(
-            "bg-primary-600 hover:bg-primary-700 text-white",
+            "bg-indigo-600 hover:bg-indigo-700 text-white",
             saved && "bg-green-600 hover:bg-green-700"
           )}
         >
@@ -392,7 +399,7 @@ export default function NotificationsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Smartphone className="h-5 w-5 text-primary-500" />
+            <Smartphone className="h-5 w-5 text-indigo-500" />
             Quiet Hours
           </CardTitle>
           <CardDescription>Pause non-urgent notifications during specific hours</CardDescription>
@@ -402,7 +409,7 @@ export default function NotificationsPage() {
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
-                className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-5 w-5"
+                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 h-5 w-5"
                 defaultChecked
               />
               <span className="text-gray-700 dark:text-gray-300">Enable quiet hours</span>

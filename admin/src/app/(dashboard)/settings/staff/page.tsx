@@ -140,11 +140,17 @@ export default function StaffPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => {
-      setStaff(mockStaff);
-      setLoading(false);
-    }, 500);
+    
+    // Load from localStorage or use defaults
+    const savedStaff = localStorage.getItem('staffMembers');
+    setStaff(savedStaff ? JSON.parse(savedStaff) : mockStaff);
+    setLoading(false);
   }, [router]);
+  
+  const saveStaff = (newStaff: StaffMember[]) => {
+    setStaff(newStaff);
+    localStorage.setItem('staffMembers', JSON.stringify(newStaff));
+  };
 
   const filteredStaff = staff.filter((member) => {
     const matchesSearch = 
@@ -282,7 +288,7 @@ export default function StaffPage() {
           </Select>
         </div>
 
-        <Button size="sm" className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white">
+        <Button size="sm" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white">
           <Plus className="h-4 w-4 mr-2" />
           Invite Staff
         </Button>

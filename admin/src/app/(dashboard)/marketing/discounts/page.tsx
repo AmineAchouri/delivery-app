@@ -168,11 +168,17 @@ export default function DiscountsPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => {
-      setDiscounts(mockDiscounts);
-      setLoading(false);
-    }, 500);
+    
+    // Load from localStorage or use defaults
+    const savedDiscounts = localStorage.getItem('marketingDiscounts');
+    setDiscounts(savedDiscounts ? JSON.parse(savedDiscounts) : mockDiscounts);
+    setLoading(false);
   }, [router]);
+  
+  const saveDiscounts = (newDiscounts: Discount[]) => {
+    setDiscounts(newDiscounts);
+    localStorage.setItem('marketingDiscounts', JSON.stringify(newDiscounts));
+  };
 
   const filteredDiscounts = discounts.filter((discount) => {
     const matchesSearch = 
@@ -235,6 +241,19 @@ export default function DiscountsPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Demo Data Notice */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
+        <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center flex-shrink-0">
+          <Percent className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-amber-900 dark:text-amber-100">Demo Mode</h3>
+          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+            Discount codes shown here are simulated demo data. In production, this would integrate with your payment system to apply discounts at checkout.
+          </p>
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200 dark:border-purple-800">
@@ -319,7 +338,7 @@ export default function DiscountsPage() {
           </Select>
         </div>
 
-        <Button size="sm" className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white">
+        <Button size="sm" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white">
           <Plus className="h-4 w-4 mr-2" />
           Create Discount
         </Button>
@@ -379,7 +398,7 @@ export default function DiscountsPage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <span className="font-semibold text-primary-600 dark:text-primary-400">
+                    <span className="font-semibold text-indigo-600 dark:text-indigo-400">
                       {getDiscountDisplay(discount)}
                     </span>
                     {discount.maxDiscount && (
@@ -398,7 +417,7 @@ export default function DiscountsPage() {
                         <div
                           className={cn(
                             "h-full rounded-full",
-                            discount.usageCount >= discount.usageLimit ? "bg-red-500" : "bg-primary-500"
+                            discount.usageCount >= discount.usageLimit ? "bg-red-500" : "bg-indigo-500"
                           )}
                           style={{ width: `${Math.min((discount.usageCount / discount.usageLimit) * 100, 100)}%` }}
                         />

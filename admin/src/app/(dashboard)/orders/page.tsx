@@ -3,14 +3,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { API_ENDPOINTS } from '@/config/api';
-import { TENANT_ID } from '@/config/constants';
+import { useAuthenticatedFetch, useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ChevronRight, RefreshCw } from 'lucide-react';
+import { ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface Order {
   id: string;
@@ -23,36 +25,41 @@ interface Order {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const authFetch = useAuthenticatedFetch();
+  const { formatPrice } = useCurrency();
+  const { selectedTenant, isPlatformAdmin } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const loadOrders = async () => {
+    // Platform admins need a tenant selected to view orders
+    if (isPlatformAdmin && !selectedTenant) {
+      setError('Please select a restaurant from the Restaurants page to view orders');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const res = await fetch(API_ENDPOINTS.ORDERS.LIST, {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': TENANT_ID,
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
-      });
+      // Use tenant API endpoint which works for both platform admins and tenant users
+      const res = await authFetch(`${API_BASE_URL}/api/tenant/orders`);
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.message || 'Failed to load orders');
+        throw new Error(data?.message || data?.error || 'Failed to load orders');
       }
 
       const data = await res.json();
-      const items: Order[] = Array.isArray(data) ? data : data.orders || [];
+      const items: Order[] = (data.data || []).map((o: any) => ({
+        id: o.id,
+        order_id: o.id,
+        status: o.status,
+        total: o.total,
+        created_at: o.createdAt,
+        customer_name: o.customer
+      }));
       setOrders(items);
     } catch (err: any) {
       setError(err.message || 'Failed to load orders');
@@ -64,7 +71,7 @@ export default function OrdersPage() {
   useEffect(() => {
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedTenant]);
 
   const formatDate = (value?: string) => {
     if (!value) return '-';
@@ -74,8 +81,8 @@ export default function OrdersPage() {
   };
 
   const formatTotal = (value: number | string) => {
-    if (typeof value === 'string') return value;
-    return `$${value.toFixed(2)}`;
+    if (typeof value === 'string') return formatPrice(parseFloat(value) || 0);
+    return formatPrice(value);
   };
 
   const statusVariant = (status: string) => {

@@ -64,7 +64,7 @@ export default function ProductAnalyticsPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => setLoading(false), 500);
+    setLoading(false);
   }, [router]);
 
   const topProducts: Product[] = [
@@ -216,7 +216,7 @@ export default function ProductAnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart2 className="h-5 w-5 text-primary-500" />
+            <BarChart2 className="h-5 w-5 text-indigo-500" />
             Category Performance
           </CardTitle>
           <CardDescription>Revenue and orders by category</CardDescription>

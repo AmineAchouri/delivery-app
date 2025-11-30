@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { 
   TrendingUp, 
   TrendingDown,
@@ -14,12 +15,16 @@ import {
   Calendar,
   BarChart2,
   PieChart,
-  Activity
+  Activity,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface MetricCard {
   title: string;
@@ -36,91 +41,178 @@ interface ChartData {
   percentage?: number;
 }
 
+interface Stats {
+  users: number;
+  orders: { total: number; today: number; pending: number };
+  menu: { items: number; categories: number };
+  revenue: { total: number; today: number };
+}
+
+interface AnalyticsData {
+  revenueByDay: ChartData[];
+  ordersByHour: ChartData[];
+  ordersByCategory: ChartData[];
+  topProducts: { name: string; orders: number; revenue: number }[];
+  summary: { totalOrders: number; totalRevenue: number; avgOrderValue: number };
+}
+
 export default function AnalyticsPage() {
   const router = useRouter();
+  const authFetch = useAuthenticatedFetch();
   const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [timeRange, setTimeRange] = useState('7d');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [showCustomRange, setShowCustomRange] = useState(false);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
     if (!token) {
       router.push('/login');
       return;
     }
-    setTimeout(() => setLoading(false), 500);
-  }, [router]);
+    fetchData();
+  }, [router, timeRange]);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      // Get days from timeRange
+      const daysMap: Record<string, number> = {
+        '24h': 1,
+        '7d': 7,
+        '30d': 30,
+        '90d': 90,
+        '1y': 365
+      };
+      const days = daysMap[timeRange] || 7;
+
+      const [statsRes, analyticsRes] = await Promise.all([
+        authFetch(`${API_BASE_URL}/api/tenant/stats`),
+        authFetch(`${API_BASE_URL}/api/tenant/analytics?days=${days}`)
+      ]);
+
+      if (statsRes.ok) {
+        const data = await statsRes.json();
+        setStats(data);
+      }
+
+      if (analyticsRes.ok) {
+        const data = await analyticsRes.json();
+        setAnalytics(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTimeRangeChange = (range: string) => {
+    setTimeRange(range);
+    if (range === 'custom') {
+      setShowCustomRange(true);
+    } else {
+      setShowCustomRange(false);
+    }
+    // In a real app, this would trigger a data refresh
+  };
+
+  const handleExport = () => {
+    const data = {
+      timeRange,
+      exportDate: new Date().toISOString(),
+      metrics: { revenue: 24563, orders: 1234, customers: 156 }
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `analytics-${timeRange}-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const applyCustomRange = () => {
+    if (customStartDate && customEndDate) {
+      setShowCustomRange(false);
+      // In a real app, this would trigger a data refresh with the custom date range
+      alert(`Applied custom range: ${customStartDate} to ${customEndDate}`);
+    }
+  };
 
   const metrics: MetricCard[] = [
     {
       title: 'Total Revenue',
-      value: '$24,563.00',
-      change: 12.5,
-      changeLabel: 'vs last period',
+      value: formatPrice(stats?.revenue.total || 0),
+      change: 0,
+      changeLabel: `${formatPrice(stats?.revenue.today || 0)} today`,
       icon: <DollarSign className="h-5 w-5" />,
       color: 'from-green-500 to-emerald-600',
     },
     {
       title: 'Total Orders',
-      value: '1,234',
-      change: 8.2,
-      changeLabel: 'vs last period',
+      value: (stats?.orders.total || 0).toLocaleString(),
+      change: 0,
+      changeLabel: `${stats?.orders.today || 0} today`,
       icon: <ShoppingBag className="h-5 w-5" />,
       color: 'from-blue-500 to-indigo-600',
     },
     {
-      title: 'New Customers',
-      value: '156',
-      change: -3.1,
-      changeLabel: 'vs last period',
+      title: 'Customers',
+      value: (stats?.users || 0).toLocaleString(),
+      change: 0,
+      changeLabel: 'registered users',
       icon: <Users className="h-5 w-5" />,
       color: 'from-purple-500 to-violet-600',
     },
     {
-      title: 'Avg. Order Time',
-      value: '24 min',
-      change: -5.4,
-      changeLabel: 'faster than before',
-      icon: <Clock className="h-5 w-5" />,
+      title: 'Menu Items',
+      value: (stats?.menu.items || 0).toLocaleString(),
+      change: 0,
+      changeLabel: `${stats?.menu.categories || 0} categories`,
+      icon: <Activity className="h-5 w-5" />,
       color: 'from-orange-500 to-amber-600',
     },
   ];
 
-  const revenueByDay: ChartData[] = [
-    { label: 'Mon', value: 3200 },
-    { label: 'Tue', value: 4100 },
-    { label: 'Wed', value: 3800 },
-    { label: 'Thu', value: 5200 },
-    { label: 'Fri', value: 6100 },
-    { label: 'Sat', value: 7500 },
-    { label: 'Sun', value: 5800 },
+  // Use real data from API or fallback to empty arrays
+  const revenueByDay: ChartData[] = analytics?.revenueByDay || [
+    { label: 'Mon', value: 0 },
+    { label: 'Tue', value: 0 },
+    { label: 'Wed', value: 0 },
+    { label: 'Thu', value: 0 },
+    { label: 'Fri', value: 0 },
+    { label: 'Sat', value: 0 },
+    { label: 'Sun', value: 0 },
   ];
 
-  const ordersByCategory: ChartData[] = [
-    { label: 'Pizza', value: 420, percentage: 35 },
-    { label: 'Burgers', value: 280, percentage: 23 },
-    { label: 'Sushi', value: 180, percentage: 15 },
-    { label: 'Salads', value: 150, percentage: 12.5 },
-    { label: 'Drinks', value: 100, percentage: 8.5 },
-    { label: 'Desserts', value: 70, percentage: 6 },
+  const ordersByCategory: ChartData[] = analytics?.ordersByCategory?.length 
+    ? analytics.ordersByCategory 
+    : [{ label: 'No data', value: 0, percentage: 0 }];
+
+  const ordersByHour: ChartData[] = analytics?.ordersByHour || [
+    { label: '10am', value: 0 },
+    { label: '11am', value: 0 },
+    { label: '12pm', value: 0 },
+    { label: '1pm', value: 0 },
+    { label: '2pm', value: 0 },
+    { label: '3pm', value: 0 },
+    { label: '4pm', value: 0 },
+    { label: '5pm', value: 0 },
+    { label: '6pm', value: 0 },
+    { label: '7pm', value: 0 },
+    { label: '8pm', value: 0 },
+    { label: '9pm', value: 0 },
   ];
 
-  const ordersByHour: ChartData[] = [
-    { label: '10am', value: 45 },
-    { label: '11am', value: 78 },
-    { label: '12pm', value: 156 },
-    { label: '1pm', value: 189 },
-    { label: '2pm', value: 134 },
-    { label: '3pm', value: 89 },
-    { label: '4pm', value: 67 },
-    { label: '5pm', value: 98 },
-    { label: '6pm', value: 178 },
-    { label: '7pm', value: 234 },
-    { label: '8pm', value: 267 },
-    { label: '9pm', value: 198 },
-  ];
+  const topProducts = analytics?.topProducts || [];
 
-  const maxRevenue = Math.max(...revenueByDay.map(d => d.value));
-  const maxOrders = Math.max(...ordersByHour.map(d => d.value));
+  const maxRevenue = Math.max(...revenueByDay.map(d => d.value), 1);
+  const maxOrders = Math.max(...ordersByHour.map(d => d.value), 1);
 
   const categoryColors = [
     'bg-blue-500',
@@ -160,7 +252,7 @@ export default function AnalyticsPage() {
         <div className="flex items-center gap-3">
           <Select
             value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value)}
+            onChange={(e) => handleTimeRangeChange(e.target.value)}
             className="w-40"
           >
             <option value="24h">Last 24 hours</option>
@@ -168,12 +260,47 @@ export default function AnalyticsPage() {
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
             <option value="1y">Last year</option>
+            <option value="custom">Custom Range</option>
           </Select>
-          <Button variant="outline" size="sm">
-            <Calendar className="h-4 w-4 mr-2" />
-            Custom Range
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Activity className="h-4 w-4 mr-2" />
+            Export
           </Button>
         </div>
+        
+        {/* Custom Date Range Modal */}
+        {showCustomRange && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowCustomRange(false)} />
+            <div className="relative w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Custom Date Range</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <Button variant="outline" onClick={() => setShowCustomRange(false)} className="flex-1">Cancel</Button>
+                <Button onClick={applyCustomRange} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">Apply</Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Metric Cards */}
@@ -217,7 +344,7 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <BarChart2 className="h-5 w-5 text-primary-500" />
+                  <BarChart2 className="h-5 w-5 text-indigo-500" />
                   Revenue by Day
                 </CardTitle>
                 <CardDescription>Daily revenue for the selected period</CardDescription>
@@ -233,7 +360,7 @@ export default function AnalyticsPage() {
                 <div key={index} className="flex-1 flex flex-col items-center gap-2">
                   <div className="w-full relative group">
                     <div
-                      className="w-full bg-gradient-to-t from-primary-500 to-primary-400 rounded-t-md transition-all hover:from-primary-600 hover:to-primary-500 cursor-pointer"
+                      className="w-full bg-gradient-to-t from-indigo-500 to-indigo-400 rounded-t-md transition-all hover:from-indigo-600 hover:to-indigo-500 cursor-pointer"
                       style={{ height: `${(day.value / maxRevenue) * 200}px` }}
                     />
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
@@ -253,7 +380,7 @@ export default function AnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <PieChart className="h-5 w-5 text-primary-500" />
+                  <PieChart className="h-5 w-5 text-indigo-500" />
                   Orders by Category
                 </CardTitle>
                 <CardDescription>Distribution of orders across categories</CardDescription>
@@ -292,7 +419,7 @@ export default function AnalyticsPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-primary-500" />
+                <Activity className="h-5 w-5 text-indigo-500" />
                 Orders by Hour
               </CardTitle>
               <CardDescription>Peak ordering times throughout the day</CardDescription>
@@ -309,7 +436,7 @@ export default function AnalyticsPage() {
                       "w-full rounded-t-sm transition-all cursor-pointer",
                       hour.value === maxOrders 
                         ? "bg-gradient-to-t from-green-500 to-green-400" 
-                        : "bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 hover:from-primary-400 hover:to-primary-300"
+                        : "bg-gradient-to-t from-gray-300 to-gray-200 dark:from-gray-600 dark:to-gray-500 hover:from-indigo-400 hover:to-indigo-300"
                     )}
                     style={{ height: `${(hour.value / maxOrders) * 160}px` }}
                   />
@@ -331,6 +458,49 @@ export default function AnalyticsPage() {
               <span className="text-gray-600 dark:text-gray-300">Regular Hours</span>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Top Products */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-indigo-500" />
+                Top Products
+              </CardTitle>
+              <CardDescription>Best selling items in the selected period</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {topProducts.length > 0 ? (
+            <div className="space-y-4">
+              {topProducts.map((product, index) => (
+                <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "h-8 w-8 rounded-full flex items-center justify-center text-white font-bold text-sm",
+                      index === 0 ? "bg-yellow-500" : index === 1 ? "bg-gray-400" : index === 2 ? "bg-amber-600" : "bg-gray-300"
+                    )}>
+                      {index + 1}
+                    </div>
+                    <span className="font-medium text-gray-900 dark:text-white">{product.name}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-gray-900 dark:text-white">{product.orders} orders</p>
+                    <p className="text-sm text-gray-500">{formatPrice(product.revenue)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">
+              <ShoppingBag className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>No product data available for this period</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

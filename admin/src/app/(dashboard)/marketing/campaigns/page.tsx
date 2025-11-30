@@ -161,6 +161,15 @@ export default function CampaignsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [showModal, setShowModal] = useState(false);
+  const [viewingCampaign, setViewingCampaign] = useState<Campaign | null>(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'email' as Campaign['type'],
+    status: 'draft' as Campaign['status'],
+    startDate: '',
+    endDate: ''
+  });
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -168,12 +177,58 @@ export default function CampaignsPage() {
       router.push('/login');
       return;
     }
-    // Simulate loading
-    setTimeout(() => {
-      setCampaigns(mockCampaigns);
-      setLoading(false);
-    }, 500);
+    
+    // Load from localStorage or use defaults
+    const savedCampaigns = localStorage.getItem('marketingCampaigns');
+    setCampaigns(savedCampaigns ? JSON.parse(savedCampaigns) : mockCampaigns);
+    setLoading(false);
   }, [router]);
+  
+  const saveCampaigns = (newCampaigns: Campaign[]) => {
+    setCampaigns(newCampaigns);
+    localStorage.setItem('marketingCampaigns', JSON.stringify(newCampaigns));
+  };
+
+  const openCreateModal = () => {
+    setFormData({ name: '', type: 'email', status: 'draft', startDate: '', endDate: '' });
+    setShowModal(true);
+  };
+
+  const handleCreateCampaign = () => {
+    const newCampaign: Campaign = {
+      id: Date.now().toString(),
+      name: formData.name,
+      type: formData.type,
+      status: 'draft',
+      audience: 0,
+      startDate: formData.startDate || new Date().toISOString().split('T')[0],
+      endDate: formData.endDate,
+      sent: 0,
+      opened: 0,
+      clicked: 0,
+      converted: 0
+    };
+    saveCampaigns([...campaigns, newCampaign]);
+    setShowModal(false);
+  };
+
+  const handleViewCampaign = (campaign: Campaign) => {
+    setViewingCampaign(campaign);
+  };
+
+  const handleLaunchCampaign = (campaignId: string) => {
+    const updated = campaigns.map(c => 
+      c.id === campaignId ? { ...c, status: 'active' as const } : c
+    );
+    saveCampaigns(updated);
+  };
+
+  const handlePauseCampaign = (campaignId: string) => {
+    const updated = campaigns.map(c => 
+      c.id === campaignId ? { ...c, status: 'paused' as const } : c
+    );
+    saveCampaigns(updated);
+  };
 
   const filteredCampaigns = campaigns.filter((campaign) => {
     const matchesSearch = campaign.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -216,6 +271,19 @@ export default function CampaignsPage() {
 
   return (
     <div className="p-6 space-y-6">
+      {/* Demo Data Notice */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex items-start gap-3">
+        <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-800 flex items-center justify-center flex-shrink-0">
+          <Zap className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div>
+          <h3 className="font-semibold text-amber-900 dark:text-amber-100">Demo Mode</h3>
+          <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+            Marketing campaigns shown here are simulated demo data. In production, this module would integrate with email marketing services (Mailchimp, SendGrid), push notification providers, and SMS gateways.
+          </p>
+        </div>
+      </div>
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800">
@@ -312,7 +380,7 @@ export default function CampaignsPage() {
           </Select>
         </div>
 
-        <Button size="sm" className="w-full sm:w-auto bg-primary-600 hover:bg-primary-700 text-white">
+        <Button size="sm" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white" onClick={openCreateModal}>
           <Plus className="h-4 w-4 mr-2" />
           Create Campaign
         </Button>
@@ -402,7 +470,7 @@ export default function CampaignsPage() {
                     </div>
                     <div className="mt-1 h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-primary-500 rounded-full"
+                        className="h-full bg-indigo-500 rounded-full"
                         style={{ width: `${((campaign.spent || 0) / campaign.budget) * 100}%` }}
                       />
                     </div>
@@ -412,17 +480,17 @@ export default function CampaignsPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
-                <Button variant="outline" size="sm" className="flex-1">
+                <Button variant="outline" size="sm" className="flex-1" onClick={() => handleViewCampaign(campaign)}>
                   <Eye className="h-4 w-4 mr-1" />
                   View
                 </Button>
                 {campaign.status === 'active' ? (
-                  <Button variant="outline" size="sm" className="flex-1">
+                  <Button variant="outline" size="sm" className="flex-1" onClick={() => handlePauseCampaign(campaign.id)}>
                     <Pause className="h-4 w-4 mr-1" />
                     Pause
                   </Button>
                 ) : campaign.status === 'paused' || campaign.status === 'draft' ? (
-                  <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                  <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={() => handleLaunchCampaign(campaign.id)}>
                     <Play className="h-4 w-4 mr-1" />
                     {campaign.status === 'draft' ? 'Launch' : 'Resume'}
                   </Button>
@@ -439,12 +507,124 @@ export default function CampaignsPage() {
             <Zap className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No campaigns found</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-4">Try adjusting your filters or create a new campaign</p>
-            <Button className="bg-primary-600 hover:bg-primary-700 text-white">
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={openCreateModal}>
               <Plus className="h-4 w-4 mr-2" />
               Create Campaign
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {/* Create Campaign Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowModal(false)} />
+          <div className="relative w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Create New Campaign</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Campaign Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                  placeholder="e.g., Summer Sale Promotion"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type</label>
+                <select
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                >
+                  <option value="email">Email</option>
+                  <option value="push">Push Notification</option>
+                  <option value="sms">SMS</option>
+                  <option value="in-app">In-App</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date</label>
+                <input
+                  type="date"
+                  value={formData.startDate}
+                  onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date</label>
+                <input
+                  type="date"
+                  value={formData.endDate}
+                  onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" onClick={() => setShowModal(false)} className="flex-1">Cancel</Button>
+              <Button onClick={handleCreateCampaign} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white">
+                Create Campaign
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Campaign Modal */}
+      {viewingCampaign && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setViewingCampaign(null)} />
+          <div className="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-xl shadow-xl p-6">
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{viewingCampaign.name}</h2>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <span className={cn("px-2.5 py-0.5 rounded-full text-xs font-medium", statusColors[viewingCampaign.status])}>
+                  {viewingCampaign.status}
+                </span>
+                <span className="text-sm text-gray-500">{viewingCampaign.type.toUpperCase()}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div>
+                  <p className="text-sm text-gray-500">Audience</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCampaign.audience.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Sent</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCampaign.sent.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Opened</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCampaign.opened.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Clicked</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCampaign.clicked.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Converted</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{viewingCampaign.converted.toLocaleString()}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Start Date</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{formatDate(viewingCampaign.startDate)}</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" onClick={() => setViewingCampaign(null)} className="flex-1">Close</Button>
+              {viewingCampaign.status === 'draft' && (
+                <Button onClick={() => { handleLaunchCampaign(viewingCampaign.id); setViewingCampaign(null); }} className="flex-1 bg-green-600 hover:bg-green-700 text-white">
+                  Launch Campaign
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

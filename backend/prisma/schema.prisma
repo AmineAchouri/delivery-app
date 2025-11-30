@@ -13,6 +13,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Platform-level admin (not tied to any tenant)
+model PlatformAdmin {
+  admin_id      String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String
+  role          String   // SUPER_ADMIN or PLATFORM_ADMIN
+  status        String   @default("active") // active, inactive, suspended
+  created_by    String?  // admin_id of who created this admin (null for initial super admin)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Self-relation for created_by
+  creator           PlatformAdmin?  @relation("AdminCreator", fields: [created_by], references: [admin_id])
+  createdAdmins     PlatformAdmin[] @relation("AdminCreator")
+  
+  // Assigned tenants (only for PLATFORM_ADMIN role)
+  assignedTenants   PlatformAdminTenant[]
+  
+  // Refresh tokens for platform admins
+  refreshTokens     PlatformAdminRefreshToken[]
+}
+
+// Junction table: which tenants a platform admin can access
+model PlatformAdminTenant {
+  id          String   @id @default(uuid())
+  admin_id    String
+  tenant_id   String
+  assigned_at DateTime @default(now())
+  assigned_by String?  // admin_id of who assigned this
+
+  admin  PlatformAdmin @relation(fields: [admin_id], references: [admin_id], onDelete: Cascade)
+  tenant Tenant        @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
+
+  @@unique([admin_id, tenant_id])
+}
+
+// Refresh tokens for platform admins
+model PlatformAdminRefreshToken {
+  id           String    @id @default(uuid())
+  admin_id     String
+  token_hash   String    @unique
+  created_at   DateTime  @default(now())
+  expires_at   DateTime
+  revoked_at   DateTime?
+
+  admin PlatformAdmin @relation(fields: [admin_id], references: [admin_id], onDelete: Cascade)
+
+  @@index([admin_id])
+}
+
 model Permission {
   permission_id   String           @id @default(uuid())
   name            String           @unique
@@ -123,6 +174,8 @@ model Tenant {
   cartItems       CartItem[]
   // Add back-relation for OrderItem
   orderItems      OrderItem[]
+  // Platform admins assigned to this tenant
+  platformAdmins  PlatformAdminTenant[]
 }
 
 model TenantFeature {

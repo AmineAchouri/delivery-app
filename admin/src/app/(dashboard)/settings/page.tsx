@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { 
   Settings, 
   Store, 
@@ -13,13 +14,16 @@ import {
   Camera,
   Save,
   Upload,
-  CheckCircle
+  CheckCircle,
+  Loader2
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface BusinessSettings {
   name: string;
@@ -46,23 +50,27 @@ interface OperatingHours {
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { selectedTenant, updateTenantSettings: updateContextSettings } = useAuth();
+  const authFetch = useAuthenticatedFetch();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   
+  // Use tenant data as defaults, fall back to empty values
   const [settings, setSettings] = useState<BusinessSettings>({
-    name: 'DeliveryApp Restaurant',
-    description: 'The best food delivery service in town. Fresh ingredients, fast delivery, and amazing taste.',
-    email: 'contact@deliveryapp.com',
-    phone: '+1 (555) 123-4567',
-    website: 'https://deliveryapp.com',
-    address: '123 Main Street',
-    city: 'New York',
-    state: 'NY',
-    zipCode: '10001',
-    country: 'United States',
+    name: '',
+    description: '',
+    email: '',
+    phone: '',
+    website: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: '',
     timezone: 'America/New_York',
     currency: 'USD',
+    logo: '',
   });
 
   const [operatingHours, setOperatingHours] = useState<OperatingHours[]>([
@@ -75,22 +83,88 @@ export default function SettingsPage() {
     { day: 'Sunday', open: '10:00', close: '21:00', closed: false },
   ]);
 
+  const fetchSettings = async () => {
+    try {
+      const response = await authFetch(`${API_BASE_URL}/api/tenant/settings`);
+      if (response.ok) {
+        const data = await response.json();
+        // Map API response to settings object
+        setSettings(prev => ({
+          ...prev,
+          logo: data.logo || '',
+          name: data.name || selectedTenant?.name || '',
+          description: data.description || '',
+          email: data.email || '',
+          phone: data.phone || '',
+          website: data.website || (selectedTenant?.domain ? `https://${selectedTenant.domain}` : ''),
+          address: data.address || '',
+          city: data.city || '',
+          state: data.state || '',
+          zipCode: data.zipCode || '',
+          country: data.country || '',
+          timezone: data.timezone || 'America/New_York',
+          currency: data.currency || 'USD',
+        }));
+        
+        // Load operating hours if saved
+        if (data.operatingHours) {
+          try {
+            setOperatingHours(JSON.parse(data.operatingHours));
+          } catch (e) {
+            console.error('Failed to parse operating hours');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch settings:', error);
+    }
+  };
+
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
     if (!token) {
       router.push('/login');
       return;
     }
-    setTimeout(() => setLoading(false), 500);
-  }, [router]);
+    
+    if (selectedTenant) {
+      fetchSettings();
+    }
+    
+    setLoading(false);
+  }, [router, selectedTenant]);
 
   const handleSave = async () => {
     setSaving(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      // Save to backend API
+      const settingsToSave = {
+        ...settings,
+        operatingHours: JSON.stringify(operatingHours)
+      };
+      
+      const response = await authFetch(`${API_BASE_URL}/api/tenant/settings`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settingsToSave)
+      });
+      
+      if (response.ok) {
+        const savedSettings = await response.json();
+        // Update the cached settings in context
+        updateContextSettings(savedSettings);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.error || 'Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      alert('Failed to save settings');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const updateSettings = (field: keyof BusinessSettings, value: string) => {
@@ -128,8 +202,7 @@ export default function SettingsPage() {
           onClick={handleSave} 
           disabled={saving}
           className={cn(
-            "bg-primary-600 hover:bg-primary-700 text-white",
-            saved && "bg-green-600 hover:bg-green-700"
+            saved && "!bg-green-600 hover:!bg-green-700"
           )}
         >
           {saving ? (
@@ -155,7 +228,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Store className="h-5 w-5 text-primary-500" />
+            <Store className="h-5 w-5 text-indigo-500" />
             Business Profile
           </CardTitle>
           <CardDescription>Your business identity and branding</CardDescription>
@@ -164,14 +237,55 @@ export default function SettingsPage() {
           <div className="flex flex-col sm:flex-row gap-6">
             {/* Logo Upload */}
             <div className="flex flex-col items-center gap-3">
-              <div className="h-32 w-32 rounded-xl bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800 flex items-center justify-center border-2 border-dashed border-primary-300 dark:border-primary-700">
+              <div className="h-32 w-32 rounded-xl bg-gradient-to-br from-indigo-100 to-indigo-200 dark:from-indigo-900 dark:to-indigo-800 flex items-center justify-center border-2 border-dashed border-indigo-300 dark:border-indigo-700 overflow-hidden">
                 {settings.logo ? (
-                  <img src={settings.logo} alt="Logo" className="h-full w-full object-cover rounded-xl" />
+                  <img src={settings.logo} alt="Logo" className="h-full w-full object-cover" />
                 ) : (
-                  <Camera className="h-10 w-10 text-primary-500" />
+                  <Camera className="h-10 w-10 text-indigo-500" />
                 )}
               </div>
-              <Button variant="outline" size="sm">
+              <input
+                type="file"
+                id="logo-upload"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = async () => {
+                      try {
+                        // Upload to server
+                        const response = await authFetch(`${API_BASE_URL}/api/tenant/upload`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            data: reader.result,
+                            type: 'logo'
+                          })
+                        });
+                        
+                        if (response.ok) {
+                          const { url } = await response.json();
+                          // Store the URL (prepend API base for full path)
+                          updateSettings('logo', `${API_BASE_URL}${url}`);
+                        } else {
+                          alert('Failed to upload logo');
+                        }
+                      } catch (error) {
+                        console.error('Upload error:', error);
+                        alert('Failed to upload logo');
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => document.getElementById('logo-upload')?.click()}
+              >
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Logo
               </Button>
@@ -198,7 +312,7 @@ export default function SettingsPage() {
                   onChange={(e) => updateSettings('description', e.target.value)}
                   placeholder="Describe your business"
                   rows={3}
-                  className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-primary-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
+                  className="flex w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:border-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:placeholder:text-gray-400"
                 />
               </div>
             </div>
@@ -210,7 +324,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Phone className="h-5 w-5 text-primary-500" />
+            <Phone className="h-5 w-5 text-indigo-500" />
             Contact Information
           </CardTitle>
           <CardDescription>How customers can reach you</CardDescription>
@@ -261,7 +375,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary-500" />
+            <MapPin className="h-5 w-5 text-indigo-500" />
             Business Address
           </CardTitle>
           <CardDescription>Your physical location</CardDescription>
@@ -332,7 +446,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="h-5 w-5 text-primary-500" />
+            <Clock className="h-5 w-5 text-indigo-500" />
             Operating Hours
           </CardTitle>
           <CardDescription>Set your business hours for each day</CardDescription>
@@ -356,7 +470,7 @@ export default function SettingsPage() {
                       type="checkbox"
                       checked={hours.closed}
                       onChange={(e) => updateHours(index, 'closed', e.target.checked)}
-                      className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                     />
                     <span className="text-sm text-gray-600 dark:text-gray-300">Closed</span>
                   </label>
@@ -388,7 +502,7 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Globe className="h-5 w-5 text-primary-500" />
+            <Globe className="h-5 w-5 text-indigo-500" />
             Regional Settings
           </CardTitle>
           <CardDescription>Timezone and currency preferences</CardDescription>

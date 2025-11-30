@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface LoyaltyTier {
   name: string;
@@ -101,6 +102,7 @@ const getTierColor = (tier: string) => {
 export default function LoyaltyPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -108,8 +110,7 @@ export default function LoyaltyPage() {
       router.push('/login');
       return;
     }
-    // Simulate loading
-    setTimeout(() => setLoading(false), 500);
+    setLoading(false);
   }, [router]);
 
   const totalMembers = loyaltyTiers.reduce((sum, tier) => sum + tier.customerCount, 0);
@@ -237,7 +238,7 @@ export default function LoyaltyPage() {
                 <ul className="space-y-2">
                   {tier.benefits.map((benefit, index) => (
                     <li key={index} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-                      <Sparkles className="h-3 w-3 text-primary-500 flex-shrink-0" />
+                      <Sparkles className="h-3 w-3 text-indigo-500 flex-shrink-0" />
                       {benefit}
                     </li>
                   ))}
@@ -297,7 +298,7 @@ export default function LoyaltyPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Total Spent</p>
-                    <p className="font-medium text-gray-900 dark:text-white">${customer.totalSpent.toFixed(2)}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{formatPrice(customer.totalSpent)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-gray-500 dark:text-gray-400">Points</p>

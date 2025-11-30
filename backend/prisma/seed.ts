@@ -23,13 +23,17 @@ async function main() {
     });
   }
 
-  // 2. Features
+  // 2. Features - these control which menu items are visible to restaurant owners
   const features = [
-    { feature_key: 'PAYMENT', default_enabled: true, description: 'Enable payments' },
-    { feature_key: 'DELIVERY_TRACKING', default_enabled: true, description: 'Enable delivery tasks/events' },
-    { feature_key: 'WEB_CLIENT', default_enabled: true, description: 'Enable web ordering client' },
+    { feature_key: 'ORDERS', default_enabled: true, description: 'Enable orders management' },
+    { feature_key: 'MENU', default_enabled: true, description: 'Enable menu management' },
+    { feature_key: 'CUSTOMERS', default_enabled: true, description: 'Enable customers management' },
     { feature_key: 'ANALYTICS', default_enabled: true, description: 'Enable analytics dashboards' },
-    { feature_key: 'INVOICING', default_enabled: true, description: 'Enable invoices' }
+    { feature_key: 'MARKETING', default_enabled: true, description: 'Enable marketing & promotions' },
+    { feature_key: 'PAYMENT', default_enabled: true, description: 'Enable payments' },
+    { feature_key: 'DELIVERY_TRACKING', default_enabled: true, description: 'Enable delivery tracking' },
+    { feature_key: 'WEB_CLIENT', default_enabled: true, description: 'Enable web ordering client' },
+    { feature_key: 'INVOICING', default_enabled: false, description: 'Enable invoices' }
   ];
   for (const f of features) {
     await prisma.feature.upsert({

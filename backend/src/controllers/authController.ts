@@ -10,7 +10,10 @@ export async function login(req: Request, res: Response) {
 
   const user = await prisma.user.findFirst({
     where: { tenant_id: tenantId, email },
-    include: { roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } } }
+    include: { 
+      roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
+      tenant: true
+    }
   });
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
@@ -29,7 +32,17 @@ export async function login(req: Request, res: Response) {
     perms: Array.from(perms)
   });
   const refresh = await signTenantRefresh(user.user_id, tenantId);
-  res.json({ access_token: access, refresh_token: refresh });
+  
+  res.json({ 
+    access_token: access, 
+    refresh_token: refresh,
+    tenant: {
+      tenant_id: user.tenant.tenant_id,
+      name: user.tenant.name,
+      domain: user.tenant.domain,
+      status: user.tenant.status
+    }
+  });
 }
 
 export async function refresh(req: Request, res: Response) {

@@ -28,6 +28,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface PaymentMethod {
   id: string;
@@ -96,6 +97,7 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -103,11 +105,14 @@ export default function BillingPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => {
-      setPaymentMethods(mockPaymentMethods);
-      setInvoices(mockInvoices);
-      setLoading(false);
-    }, 500);
+    
+    // Load from localStorage or use defaults
+    const savedPaymentMethods = localStorage.getItem('billingPaymentMethods');
+    const savedInvoices = localStorage.getItem('billingInvoices');
+    
+    setPaymentMethods(savedPaymentMethods ? JSON.parse(savedPaymentMethods) : mockPaymentMethods);
+    setInvoices(savedInvoices ? JSON.parse(savedInvoices) : mockInvoices);
+    setLoading(false);
   }, [router]);
 
   const currentPlan = plans.find(p => p.current);
@@ -143,17 +148,17 @@ export default function BillingPage() {
   return (
     <div className="p-6 space-y-6">
       {/* Current Plan */}
-      <Card className="bg-gradient-to-br from-primary-50 to-primary-100 dark:from-primary-900/20 dark:to-primary-800/20 border-primary-200 dark:border-primary-800">
+      <Card className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/20 dark:to-indigo-800/20 border-indigo-200 dark:border-indigo-800">
         <CardContent className="p-6">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="h-14 w-14 rounded-xl bg-primary-500 flex items-center justify-center">
+              <div className="h-14 w-14 rounded-xl bg-indigo-500 flex items-center justify-center">
                 <Crown className="h-7 w-7 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-xl font-bold text-gray-900 dark:text-white">{currentPlan?.name} Plan</h3>
-                  <Badge className="bg-primary-500 text-white">Current</Badge>
+                  <Badge className="bg-indigo-500 text-white">Current</Badge>
                 </div>
                 <p className="text-gray-600 dark:text-gray-300">
                   ${currentPlan?.price}/{currentPlan?.period} • Next billing: {formatDate(nextBillingDate.toISOString())}
@@ -164,7 +169,7 @@ export default function BillingPage() {
               <Button variant="outline">
                 Cancel Plan
               </Button>
-              <Button className="bg-primary-600 hover:bg-primary-700 text-white">
+              <Button className="bg-indigo-600 hover:bg-indigo-700 text-white">
                 <Zap className="h-4 w-4 mr-2" />
                 Upgrade Plan
               </Button>
@@ -182,11 +187,11 @@ export default function BillingPage() {
               key={plan.name}
               className={cn(
                 "relative overflow-hidden transition-shadow hover:shadow-lg",
-                plan.current && "ring-2 ring-primary-500"
+                plan.current && "ring-2 ring-indigo-500"
               )}
             >
               {plan.current && (
-                <div className="absolute top-0 right-0 bg-primary-500 text-white text-xs font-medium px-3 py-1 rounded-bl-lg">
+                <div className="absolute top-0 right-0 bg-indigo-500 text-white text-xs font-medium px-3 py-1 rounded-bl-lg">
                   Current
                 </div>
               )}
@@ -211,7 +216,7 @@ export default function BillingPage() {
                     "w-full",
                     plan.current 
                       ? "bg-gray-100 text-gray-500 cursor-not-allowed dark:bg-gray-700 dark:text-gray-400" 
-                      : "bg-primary-600 hover:bg-primary-700 text-white"
+                      : "bg-indigo-600 hover:bg-indigo-700 text-white"
                   )}
                   disabled={plan.current}
                 >
@@ -229,7 +234,7 @@ export default function BillingPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-primary-500" />
+                <CreditCard className="h-5 w-5 text-indigo-500" />
                 Payment Methods
               </CardTitle>
               <CardDescription>Manage your payment methods</CardDescription>
@@ -248,7 +253,7 @@ export default function BillingPage() {
                 className={cn(
                   "flex items-center justify-between p-4 rounded-lg border",
                   method.isDefault 
-                    ? "border-primary-200 bg-primary-50 dark:border-primary-800 dark:bg-primary-900/20" 
+                    ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-900/20" 
                     : "border-gray-200 dark:border-gray-700"
                 )}
               >
@@ -267,7 +272,7 @@ export default function BillingPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   {method.isDefault && (
-                    <Badge className="bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400">
+                    <Badge className="bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400">
                       Default
                     </Badge>
                   )}
@@ -290,7 +295,7 @@ export default function BillingPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5 text-primary-500" />
+                <Receipt className="h-5 w-5 text-indigo-500" />
                 Billing History
               </CardTitle>
               <CardDescription>View and download your invoices</CardDescription>
@@ -326,7 +331,7 @@ export default function BillingPage() {
                     <span className="text-gray-600 dark:text-gray-300">{invoice.description}</span>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className="font-medium text-gray-900 dark:text-white">${invoice.amount.toFixed(2)}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{formatPrice(invoice.amount)}</span>
                   </TableCell>
                   <TableCell className="text-center">
                     <span className={cn(
@@ -354,7 +359,7 @@ export default function BillingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-primary-500" />
+            <DollarSign className="h-5 w-5 text-indigo-500" />
             Current Usage
           </CardTitle>
           <CardDescription>Your usage for this billing period</CardDescription>

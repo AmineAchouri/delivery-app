@@ -3,6 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { 
   Clock, 
   Users, 
@@ -19,22 +20,46 @@ import {
   ShoppingCart,
   Utensils,
   UserPlus,
-  BarChart2
+  BarChart2,
+  RefreshCw,
+  Loader2,
+  Settings
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { useCurrency } from '@/contexts/CurrencyContext';
+import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 
-type OrderStatus = 'pending' | 'processing' | 'completed' | 'cancelled';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+
+type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 
 interface Order {
   id: string;
   customer: string;
-  items: number;
-  total: string;
+  itemCount: number;
+  total: number;
   status: OrderStatus;
-  date: string;
+  createdAt: string;
+}
+
+interface DashboardStats {
+  users: number;
+  orders: {
+    total: number;
+    today: number;
+    pending: number;
+  };
+  menu: {
+    items: number;
+    categories: number;
+  };
+  revenue: {
+    total: number;
+    today: number;
+  };
 }
 
 interface StatsCardProps {
@@ -73,65 +98,28 @@ const StatsCard = ({ title, value, description, icon, trend }: StatsCardProps) =
   </Card>
 );
 
-const RecentOrders = () => {
-  const orders: Order[] = [
-    {
-      id: 'ORD-001',
-      customer: 'John Doe',
-      items: 3,
-      total: '$45.99',
-      status: 'completed',
-      date: '2023-05-15 14:32'
-    },
-    {
-      id: 'ORD-002',
-      customer: 'Jane Smith',
-      items: 5,
-      total: '$78.50',
-      status: 'processing',
-      date: '2023-05-15 13:21'
-    },
-    {
-      id: 'ORD-003',
-      customer: 'Robert Johnson',
-      items: 2,
-      total: '$24.99',
-      status: 'pending',
-      date: '2023-05-15 12:45'
-    },
-    {
-      id: 'ORD-004',
-      customer: 'Emily Davis',
-      items: 1,
-      total: '$12.99',
-      status: 'completed',
-      date: '2023-05-15 11:30'
-    },
-    {
-      id: 'ORD-005',
-      customer: 'Michael Brown',
-      items: 4,
-      total: '$56.75',
-      status: 'cancelled',
-      date: '2023-05-15 10:15'
-    },
-  ];
+const RecentOrders = ({ orders }: { orders: Order[] }) => {
+  const { formatPrice } = useCurrency();
 
-  const getStatusBadge = (status: OrderStatus) => {
-    const statusMap = {
+  const getStatusBadge = (status: string) => {
+    const statusMap: Record<string, { label: string; className: string }> = {
       pending: { label: 'Pending', className: 'bg-yellow-100 text-yellow-800' },
-      processing: { label: 'Processing', className: 'bg-blue-100 text-blue-800' },
-      completed: { label: 'Completed', className: 'bg-green-100 text-green-800' },
+      confirmed: { label: 'Confirmed', className: 'bg-blue-100 text-blue-800' },
+      preparing: { label: 'Preparing', className: 'bg-indigo-100 text-indigo-800' },
+      ready: { label: 'Ready', className: 'bg-green-100 text-green-800' },
+      delivered: { label: 'Delivered', className: 'bg-emerald-100 text-emerald-800' },
       cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-800' },
     };
     return statusMap[status] || statusMap.pending;
   };
 
-  const getStatusIcon = (status: OrderStatus) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'completed':
+      case 'delivered':
+      case 'ready':
         return <CheckCircle2 className="h-4 w-4" />;
-      case 'processing':
+      case 'preparing':
+      case 'confirmed':
         return <Clock4 className="h-4 w-4" />;
       case 'cancelled':
         return <XCircle className="h-4 w-4" />;
@@ -139,6 +127,15 @@ const RecentOrders = () => {
         return <Clock4 className="h-4 w-4" />;
     }
   };
+
+  if (orders.length === 0) {
+    return (
+      <div className="text-center py-8 text-gray-500">
+        <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
+        <p>No orders yet</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -151,12 +148,12 @@ const RecentOrders = () => {
                 <ShoppingCart className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-medium">Order #{order.id}</p>
-                <p className="text-sm text-gray-500">{order.customer} • {order.items} items</p>
+                <p className="font-medium">Order #{order.id.slice(0, 8)}</p>
+                <p className="text-sm text-gray-500">{order.customer} • {order.itemCount} items</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
-              <span className="font-medium">{order.total}</span>
+              <span className="font-medium">{formatPrice(order.total)}</span>
               <Badge className={status.className}>
                 <span className="flex items-center">
                   {getStatusIcon(order.status)}
@@ -171,9 +168,11 @@ const RecentOrders = () => {
         );
       })}
       <div className="text-center">
-        <Button variant="ghost" className="text-primary">
-          View all orders
-        </Button>
+        <Link href="/orders">
+          <Button variant="ghost" className="text-indigo-600">
+            View all orders
+          </Button>
+        </Link>
       </div>
     </div>
   );
@@ -181,95 +180,204 @@ const RecentOrders = () => {
 
 const QuickActions = () => (
   <div className="space-y-3">
-    <Button variant="outline" className="w-full justify-start p-6 h-auto">
-      <div className="flex items-center space-x-4">
-        <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-          <ShoppingCart className="h-5 w-5" />
+    <Link href="/order">
+      <Button variant="outline" className="w-full justify-start p-6 h-auto">
+        <div className="flex items-center space-x-4">
+          <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+            <ShoppingCart className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium">New Order</p>
+            <p className="text-sm text-gray-500">Create a new order</p>
+          </div>
         </div>
-        <div className="text-left">
-          <p className="font-medium">New Order</p>
-          <p className="text-sm text-gray-500">Create a new order</p>
-        </div>
-      </div>
-    </Button>
+      </Button>
+    </Link>
     
-    <Button variant="outline" className="w-full justify-start p-6 h-auto">
-      <div className="flex items-center space-x-4">
-        <div className="p-2 rounded-lg bg-green-100 text-green-600">
-          <Plus className="h-5 w-5" />
+    <Link href="/menu/items">
+      <Button variant="outline" className="w-full justify-start p-6 h-auto">
+        <div className="flex items-center space-x-4">
+          <div className="p-2 rounded-lg bg-green-100 text-green-600">
+            <Plus className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium">Add Menu Item</p>
+            <p className="text-sm text-gray-500">Add new dish to the menu</p>
+          </div>
         </div>
-        <div className="text-left">
-          <p className="font-medium">Add Menu Item</p>
-          <p className="text-sm text-gray-500">Add new dish to the menu</p>
-        </div>
-      </div>
-    </Button>
+      </Button>
+    </Link>
     
-    <Button variant="outline" className="w-full justify-start p-6 h-auto">
-      <div className="flex items-center space-x-4">
-        <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-          <UserPlus className="h-5 w-5" />
+    <Link href="/customers">
+      <Button variant="outline" className="w-full justify-start p-6 h-auto">
+        <div className="flex items-center space-x-4">
+          <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+            <UserPlus className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium">Add Customer</p>
+            <p className="text-sm text-gray-500">Register a new customer</p>
+          </div>
         </div>
-        <div className="text-left">
-          <p className="font-medium">Add Customer</p>
-          <p className="text-sm text-gray-500">Register a new customer</p>
-        </div>
-      </div>
-    </Button>
+      </Button>
+    </Link>
     
-    <Button variant="outline" className="w-full justify-start p-6 h-auto">
-      <div className="flex items-center space-x-4">
-        <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
-          <BarChart2 className="h-5 w-5" />
+    <Link href="/analytics">
+      <Button variant="outline" className="w-full justify-start p-6 h-auto">
+        <div className="flex items-center space-x-4">
+          <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+            <BarChart2 className="h-5 w-5" />
+          </div>
+          <div className="text-left">
+            <p className="font-medium">View Reports</p>
+            <p className="text-sm text-gray-500">Analyze sales and performance</p>
+          </div>
         </div>
-        <div className="text-left">
-          <p className="font-medium">View Reports</p>
-          <p className="text-sm text-gray-500">Analyze sales and performance</p>
-        </div>
-      </div>
-    </Button>
+      </Button>
+    </Link>
   </div>
 );
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
+  const { formatPrice } = useCurrency();
+  const { selectedTenant, tenants, hasMultipleTenants, selectTenant, tenantSettings, fetchTenantSettings } = useAuth();
+  const authFetch = useAuthenticatedFetch();
+  
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch stats and orders in parallel
+      const [statsRes, ordersRes] = await Promise.all([
+        authFetch(`${API_BASE_URL}/api/tenant/stats`),
+        authFetch(`${API_BASE_URL}/api/tenant/orders?limit=5`)
+      ]);
+
+      if (statsRes.ok) {
+        const statsData = await statsRes.json();
+        setStats(statsData);
+      }
+
+      if (ordersRes.ok) {
+        const ordersData = await ordersRes.json();
+        setRecentOrders(ordersData.data || []);
+      }
+
+      // Fetch tenant settings if not cached
+      if (!tenantSettings) {
+        await fetchTenantSettings();
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
+    if (selectedTenant) {
+      fetchDashboardData();
     } else {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [router]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  }, [selectedTenant]);
 
   return (
     <div className="flex-1 space-y-6">
+      {/* Restaurant Switcher for multi-tenant users */}
+      {hasMultipleTenants && (
+        <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-indigo-100 dark:bg-indigo-800 flex items-center justify-center">
+                <Utensils className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-indigo-900 dark:text-indigo-100">{selectedTenant?.name}</p>
+                <p className="text-sm text-indigo-600 dark:text-indigo-400">
+                  You have access to {tenants.length} restaurants
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {tenants.map((tenant) => (
+                <button
+                  key={tenant.tenant_id}
+                  onClick={() => selectTenant(tenant)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    selectedTenant?.tenant_id === tenant.tenant_id
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 border'
+                  }`}
+                >
+                  {tenant.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restaurant Banner with Logo */}
+      {selectedTenant && (
+        <div className="relative overflow-hidden bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 rounded-2xl p-6 text-white">
+          <div className="absolute inset-0 bg-black/10" />
+          <div className="relative flex items-center gap-4">
+            {tenantSettings?.logo ? (
+              <img 
+                src={tenantSettings.logo} 
+                alt={selectedTenant.name} 
+                className="h-16 w-16 rounded-xl object-cover border-2 border-white/30 shadow-lg"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-xl bg-white/20 flex items-center justify-center border-2 border-white/30">
+                <Utensils className="h-8 w-8 text-white" />
+              </div>
+            )}
+            <div className="flex-1">
+              <h1 className="text-2xl font-bold">{tenantSettings?.name || selectedTenant.name}</h1>
+              <p className="text-white/80 text-sm mt-1">
+                {tenantSettings?.description || selectedTenant.domain || 'Restaurant Dashboard'}
+              </p>
+            </div>
+            <Link href="/settings">
+              <Button variant="secondary" size="sm" className="bg-white/20 hover:bg-white/30 text-white border-0">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Welcome back</h2>
+          <h2 className="text-2xl font-bold tracking-tight">
+            {selectedTenant ? `Welcome to ${selectedTenant.name}` : 'Welcome back'}
+          </h2>
           <p className="text-sm text-muted-foreground">
             A quick overview of how your restaurant is performing today.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="hidden sm:inline-flex">
-            <Utensils className="mr-2 h-4 w-4" />
-            Manage Menu
-          </Button>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Order
-          </Button>
+          <Link href="/menu">
+            <Button variant="outline" className="hidden sm:inline-flex">
+              <Utensils className="mr-2 h-4 w-4" />
+              Manage Menu
+            </Button>
+          </Link>
+          <Link href="/order">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Order
+            </Button>
+          </Link>
         </div>
       </div>
       
@@ -282,78 +390,99 @@ export default function DashboardPage() {
         </TabsList>
         
         <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <StatsCard
-              title="Total Revenue"
-              value="$24,780.00"
-              description="+20.1% from last month"
-              icon={<DollarSign className="h-4 w-4" />}
-              trend={{ value: '20.1%', isPositive: true }}
-            />
-            <StatsCard
-              title="Orders"
-              value="1,245"
-              description="+12% from last month"
-              icon={<Package className="h-4 w-4" />}
-              trend={{ value: '12%', isPositive: true }}
-            />
-            <StatsCard
-              title="Active Customers"
-              value="1,234"
-              description="+8% from last month"
-              icon={<Users className="h-4 w-4" />}
-              trend={{ value: '8%', isPositive: true }}
-            />
-            <StatsCard
-              title="Avg. Order Value"
-              value="$45.67"
-              description="+2.5% from last month"
-              icon={<TrendingUp className="h-4 w-4" />}
-              trend={{ value: '2.5%', isPositive: true }}
-            />
-          </div>
-          
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-            <Card className="col-span-4">
-              <CardHeader>
-                <CardTitle>Recent Orders</CardTitle>
-                <CardDescription>You've had 245 orders this week.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <RecentOrders />
-              </CardContent>
-            </Card>
-            
-            <div className="col-span-3 space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Actions</CardTitle>
-                  <CardDescription>Common tasks at your fingertips</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <QuickActions />
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Today's Special</CardTitle>
-                  <CardDescription>Featured menu item</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="relative h-40 bg-gradient-to-r from-amber-500 to-amber-600 rounded-b-lg overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10 flex flex-col justify-end p-4">
-                      <h3 className="text-lg font-semibold text-white">Spicy Pasta Arrabbiata</h3>
-                      <p className="text-sm text-amber-100">Our chef's special for today</p>
-                      <Button size="sm" className="mt-2 w-fit">
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
             </div>
-          </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <AlertCircle className="h-12 w-12 mx-auto mb-4 text-red-500" />
+              <p className="text-red-600">{error}</p>
+              <Button onClick={fetchDashboardData} className="mt-4">
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <StatsCard
+                  title="Total Revenue"
+                  value={formatPrice(stats?.revenue.total || 0)}
+                  description={`${formatPrice(stats?.revenue.today || 0)} today`}
+                  icon={<DollarSign className="h-4 w-4" />}
+                />
+                <StatsCard
+                  title="Total Orders"
+                  value={(stats?.orders.total || 0).toLocaleString()}
+                  description={`${stats?.orders.today || 0} today, ${stats?.orders.pending || 0} pending`}
+                  icon={<Package className="h-4 w-4" />}
+                />
+                <StatsCard
+                  title="Customers"
+                  value={(stats?.users || 0).toLocaleString()}
+                  description="Registered users"
+                  icon={<Users className="h-4 w-4" />}
+                />
+                <StatsCard
+                  title="Menu Items"
+                  value={(stats?.menu.items || 0).toLocaleString()}
+                  description={`${stats?.menu.categories || 0} categories`}
+                  icon={<Utensils className="h-4 w-4" />}
+                />
+              </div>
+              
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+                <Card className="col-span-4">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle>Recent Orders</CardTitle>
+                      <CardDescription>Latest {recentOrders.length} orders</CardDescription>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={fetchDashboardData}>
+                      <RefreshCw className="h-4 w-4" />
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    <RecentOrders orders={recentOrders} />
+                  </CardContent>
+                </Card>
+            
+                <div className="col-span-3 space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Quick Actions</CardTitle>
+                      <CardDescription>Common tasks at your fingertips</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <QuickActions />
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Restaurant Info</CardTitle>
+                      <CardDescription>Your restaurant details</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedTenant && (
+                        <div className="space-y-2">
+                          <p className="text-sm"><strong>Name:</strong> {selectedTenant.name}</p>
+                          <p className="text-sm"><strong>Domain:</strong> {selectedTenant.domain || 'Not set'}</p>
+                          <p className="text-sm"><strong>Status:</strong> {selectedTenant.status}</p>
+                          <Link href="/settings">
+                            <Button size="sm" className="mt-2 w-full">
+                              Manage Settings
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </>
+          )}
         </TabsContent>
         
         <TabsContent value="analytics" className="space-y-4">

@@ -4,13 +4,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { API_ENDPOINTS } from '@/config/api';
-import { TENANT_ID } from '@/config/constants';
+import { useAuthenticatedFetch, useAuth } from '@/contexts/AuthContext';
+import { useCurrency } from '@/contexts/CurrencyContext';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 interface OrderItem {
   id?: string | number;
@@ -35,6 +38,9 @@ interface OrderDetail {
 export default function OrderDetailPage() {
   const router = useRouter();
   const params = useParams();
+  const authFetch = useAuthenticatedFetch();
+  const { formatPrice } = useCurrency();
+  const { isPlatformAdmin, selectedTenant } = useAuth();
   const id = params?.id as string | undefined;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -44,23 +50,18 @@ export default function OrderDetailPage() {
 
   const loadOrder = async () => {
     if (!id) return;
+    
+    // Platform admins need a tenant selected
+    if (isPlatformAdmin && !selectedTenant) {
+      setError('Please select a restaurant from the Restaurants page to view order details');
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     setError(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const res = await fetch(API_ENDPOINTS.ORDERS.DETAIL(id), {
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': TENANT_ID,
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
-      });
+      const res = await authFetch(`${API_BASE_URL}/orders/${id}`);
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
@@ -79,7 +80,7 @@ export default function OrderDetailPage() {
   useEffect(() => {
     loadOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, selectedTenant]);
 
   const formatDate = (value?: string) => {
     if (!value) return '-';
@@ -89,8 +90,8 @@ export default function OrderDetailPage() {
   };
 
   const formatTotal = (value: number | string) => {
-    if (typeof value === 'string') return value;
-    return `$${value.toFixed(2)}`;
+    if (typeof value === 'string') return formatPrice(parseFloat(value) || 0);
+    return formatPrice(value);
   };
 
   const statusVariant = (status: string) => {
@@ -107,20 +108,9 @@ export default function OrderDetailPage() {
     setUpdating(true);
     setError(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      if (!token) {
-        router.push('/login');
-        return;
-      }
-
-      const res = await fetch(API_ENDPOINTS.ORDERS.UPDATE_STATUS(id), {
+      const res = await authFetch(`${API_BASE_URL}/orders/${id}/status`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-Id': TENANT_ID,
-          Authorization: `Bearer ${token}`,
-        },
-        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus }),
       });
 

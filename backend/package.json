@@ -13,7 +13,8 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "seed:dev:user": "ts-node src/scripts/seed-dev-user.ts",
-    "seed:dev:catalog": "ts-node src/scripts/seed-dev-catalog.ts"
+    "seed:dev:catalog": "ts-node src/scripts/seed-dev-catalog.ts",
+    "seed:platform-admin": "ts-node prisma/seedPlatformAdmin.ts"
   },
   "dependencies": {
     "@delivery/shared": "file:../packages/shared",

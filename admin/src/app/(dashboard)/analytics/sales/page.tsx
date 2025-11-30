@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
+import { useCurrency } from '@/contexts/CurrencyContext';
 
 interface SalesData {
   date: string;
@@ -52,6 +53,7 @@ export default function SalesAnalyticsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('30d');
+  const { formatPrice } = useCurrency();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -59,7 +61,7 @@ export default function SalesAnalyticsPage() {
       router.push('/login');
       return;
     }
-    setTimeout(() => setLoading(false), 500);
+    setLoading(false);
   }, [router]);
 
   const salesData: SalesData[] = [
@@ -141,7 +143,7 @@ export default function SalesAnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-green-600 dark:text-green-400">Total Revenue</p>
-                <p className="text-2xl font-bold text-green-900 dark:text-green-100">${totalRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold text-green-900 dark:text-green-100">{formatPrice(totalRevenue)}</p>
                 <p className="text-xs text-green-600 dark:text-green-400 flex items-center mt-1">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                   +12.5% vs last period
@@ -159,9 +161,9 @@ export default function SalesAnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Net Revenue</p>
-                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">${netRevenue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{formatPrice(netRevenue)}</p>
                 <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center mt-1">
-                  After ${totalRefunds.toFixed(2)} refunds
+                  After {formatPrice(totalRefunds)} refunds
                 </p>
               </div>
               <div className="h-12 w-12 rounded-full bg-blue-500/20 flex items-center justify-center">
@@ -176,7 +178,7 @@ export default function SalesAnalyticsPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Avg. Order Value</p>
-                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">${avgOrderValue.toFixed(2)}</p>
+                <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{formatPrice(avgOrderValue)}</p>
                 <p className="text-xs text-purple-600 dark:text-purple-400 flex items-center mt-1">
                   <ArrowUpRight className="h-3 w-3 mr-1" />
                   +2.3% vs last period
@@ -222,7 +224,7 @@ export default function SalesAnalyticsPage() {
                     <span className="font-medium text-gray-900 dark:text-white">{week.week}</span>
                     <div className="flex items-center gap-4">
                       <span className="text-gray-500 dark:text-gray-400">
-                        ${week.revenue.toLocaleString()} / ${week.target.toLocaleString()}
+                        {formatPrice(week.revenue)} / {formatPrice(week.target)}
                       </span>
                       <Badge variant={week.revenue >= week.target ? 'default' : 'secondary'} className={week.revenue >= week.target ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : ''}>
                         {week.revenue >= week.target ? 'On Track' : 'Behind'}
@@ -231,7 +233,7 @@ export default function SalesAnalyticsPage() {
                   </div>
                   <div className="relative h-4 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
                     <div
-                      className="absolute h-full bg-primary-500 rounded-full transition-all"
+                      className="absolute h-full bg-indigo-500 rounded-full transition-all"
                       style={{ width: `${(week.revenue / maxWeekRevenue) * 100}%` }}
                     />
                     <div
@@ -244,7 +246,7 @@ export default function SalesAnalyticsPage() {
             </div>
             <div className="mt-4 flex items-center justify-center gap-6 text-sm">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full bg-primary-500" />
+                <div className="h-3 w-3 rounded-full bg-indigo-500" />
                 <span className="text-gray-600 dark:text-gray-300">Revenue</span>
               </div>
               <div className="flex items-center gap-2">
@@ -271,7 +273,7 @@ export default function SalesAnalyticsPage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-gray-900 dark:text-white text-sm">{method.method}</span>
-                      <span className="font-bold text-gray-900 dark:text-white">${method.amount.toLocaleString()}</span>
+                      <span className="font-bold text-gray-900 dark:text-white">{formatPrice(method.amount)}</span>
                     </div>
                     <div className="flex items-center justify-between mt-1">
                       <span className="text-xs text-gray-500 dark:text-gray-400">{method.transactions} transactions</span>
@@ -314,17 +316,17 @@ export default function SalesAnalyticsPage() {
                     {new Date(day.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                   </TableCell>
                   <TableCell className="text-center">{day.orders}</TableCell>
-                  <TableCell className="text-right font-medium">${day.revenue.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">${day.avgOrderValue.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-medium">{formatPrice(day.revenue)}</TableCell>
+                  <TableCell className="text-right">{formatPrice(day.avgOrderValue)}</TableCell>
                   <TableCell className="text-right">
                     {day.refunds > 0 ? (
-                      <span className="text-red-600 dark:text-red-400">-${day.refunds.toFixed(2)}</span>
+                      <span className="text-red-600 dark:text-red-400">-{formatPrice(day.refunds)}</span>
                     ) : (
-                      <span className="text-gray-400">$0.00</span>
+                      <span className="text-gray-400">{formatPrice(0)}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right font-bold text-green-600 dark:text-green-400">
-                    ${(day.revenue - day.refunds).toFixed(2)}
+                    {formatPrice(day.revenue - day.refunds)}
                   </TableCell>
                 </TableRow>
               ))}
