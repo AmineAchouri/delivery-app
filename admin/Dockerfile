@@ -28,12 +28,13 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Expose port
-EXPOSE 3000
+# Expose port 80 (standard HTTP)
+EXPOSE 80
 
-# Set environment variable for port
-ENV PORT=3000
+# Set environment variables
+ENV PORT=80
 ENV HOSTNAME="0.0.0.0"
+ENV NEXT_PUBLIC_API_URL=""
 
 # Start the application
 CMD ["node", "server.js"]

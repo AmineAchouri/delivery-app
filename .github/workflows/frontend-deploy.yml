@@ -25,6 +25,9 @@ on:
       target_group_arn:
         description: Target group ARN for load balancer (optional)
         required: false
+      backend_api_url:
+        description: Backend API URL (e.g., https://api.example.com or http://internal-alb.us-east-1.elb.amazonaws.com)
+        required: false
 jobs:
   build-image:
     runs-on: ubuntu-latest
@@ -74,11 +77,25 @@ jobs:
       - name: Render task definition
         run: |
           IMAGE_URI='${{ needs.build-image.outputs.image-uri }}'
+          LOG_GROUP="${{ secrets.ECS_LOG_GROUP }}"
+          BACKEND_API_URL="${{ github.event.inputs.backend_api_url }}"
+          
+          # Use default log group if not provided
+          if [ -z "$LOG_GROUP" ]; then
+            LOG_GROUP="/aws/ecs/delivery-frontend-${{ github.event.inputs.env }}"
+          fi
+          
+          # Use default backend API URL if not provided (empty for now, can be set later)
+          if [ -z "$BACKEND_API_URL" ]; then
+            BACKEND_API_URL=""
+          fi
+          
           sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \
               -e "s|\${AWS_REGION}|us-east-1|g" \
               -e "s|\${EXEC_ROLE_ARN}|${{ secrets.ECS_EXEC_ROLE_ARN }}|g" \
               -e "s|\${TASK_ROLE_ARN}|${{ secrets.ECS_TASK_ROLE_ARN }}|g" \
-              -e "s|\${LOG_GROUP}|${{ secrets.ECS_LOG_GROUP }}|g" \
+              -e "s|\${LOG_GROUP}|$LOG_GROUP|g" \
+              -e "s|\${BACKEND_API_URL}|$BACKEND_API_URL|g" \
               -e "s|\${TASKDEF_FAMILY}|delivery-frontend-${{ github.event.inputs.env }}|g" \
               infra/admin-frontend-taskdef.template.json > taskdef.json
           cat taskdef.json
