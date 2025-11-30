@@ -8,7 +8,7 @@
   "taskRoleArn": "${TASK_ROLE_ARN}",
   "containerDefinitions": [
     {
-      "name": "frontend",
+      "name": "Main",
       "image": "${IMAGE_URI}",
       "essential": true,
       "portMappings": [

@@ -274,7 +274,7 @@ jobs:
           # Add load balancer if target group is provided
           if [ -n "${{ github.event.inputs.target_group_arn }}" ]; then
             echo "  Load Balancer Target Group: ${{ github.event.inputs.target_group_arn }}"
-            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=frontend,containerPort=80"
+            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=Main,containerPort=80"
           fi
           
           echo "Creating service..."
