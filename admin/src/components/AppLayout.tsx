@@ -24,7 +24,8 @@ import {
   HelpCircle,
   Building2,
   Shield,
-  UserCog
+  UserCog,
+  Smartphone
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,6 +51,7 @@ const mainNavItems: NavItem[] = [
   { name: 'Customers', href: '/customers', icon: Users, featureKey: 'CUSTOMERS' },
   { name: 'Analytics', href: '/analytics', icon: BarChart3, featureKey: 'ANALYTICS' },
   { name: 'Marketing', href: '/marketing', icon: Megaphone, featureKey: 'MARKETING' },
+  { name: 'Mobile Apps', href: '/mobile-apps', icon: Smartphone },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

@@ -23,7 +23,11 @@ import {
   BarChart2,
   RefreshCw,
   Loader2,
-  Settings
+  Settings,
+  Smartphone,
+  QrCode,
+  Download,
+  Star
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -447,6 +451,95 @@ export default function DashboardPage() {
                   icon={<Utensils className="h-4 w-4" />}
                 />
               </div>
+
+              {/* Mobile App Promotion Section */}
+              <Card className="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border-0 overflow-hidden relative">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full -ml-24 -mb-24"></div>
+                <CardContent className="p-6 relative z-10">
+                  <div className="grid gap-6 md:grid-cols-3">
+                    {/* Left: Info */}
+                    <div className="md:col-span-2 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-12 w-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                          <Smartphone className="h-6 w-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold">Get Our Mobile App</h3>
+                          <p className="text-white/90 text-sm">Order on the go with our mobile app</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">Fast & Easy Ordering</p>
+                            <p className="text-sm text-white/80">Browse menu and place orders in seconds</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">Real-time Order Tracking</p>
+                            <p className="text-sm text-white/80">Track your order from kitchen to doorstep</p>
+                          </div>
+                        </div>
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="font-semibold">Exclusive App Deals</p>
+                            <p className="text-sm text-white/80">Get special discounts and offers</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 pt-2">
+                        <Star className="h-5 w-5 fill-yellow-300 text-yellow-300" />
+                        <Star className="h-5 w-5 fill-yellow-300 text-yellow-300" />
+                        <Star className="h-5 w-5 fill-yellow-300 text-yellow-300" />
+                        <Star className="h-5 w-5 fill-yellow-300 text-yellow-300" />
+                        <Star className="h-5 w-5 fill-yellow-300 text-yellow-300" />
+                        <span className="ml-2 text-sm font-semibold">4.8/5 (10K+ reviews)</span>
+                      </div>
+                    </div>
+
+                    {/* Right: QR Codes */}
+                    <div className="flex flex-col items-center justify-center space-y-4">
+                      <div className="text-center">
+                        <p className="text-sm font-semibold mb-3">Scan to Download</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* App Store QR */}
+                          <div className="bg-white rounded-xl p-3 space-y-2">
+                            <div className="h-24 w-24 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <QrCode className="h-20 w-20 text-slate-800" />
+                            </div>
+                            <div className="flex items-center justify-center gap-1 text-slate-900">
+                              <Download className="h-3 w-3" />
+                              <span className="text-xs font-semibold">App Store</span>
+                            </div>
+                          </div>
+                          
+                          {/* Play Store QR */}
+                          <div className="bg-white rounded-xl p-3 space-y-2">
+                            <div className="h-24 w-24 bg-slate-100 rounded-lg flex items-center justify-center">
+                              <QrCode className="h-20 w-20 text-slate-800" />
+                            </div>
+                            <div className="flex items-center justify-center gap-1 text-slate-900">
+                              <Download className="h-3 w-3" />
+                              <span className="text-xs font-semibold">Play Store</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-white/70 text-center max-w-[200px]">
+                        Available for iOS 13+ and Android 8+
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
               
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
                 <Card className="col-span-4">
