@@ -73,6 +73,8 @@ interface AuthContextType extends AuthState {
   isCustomer: boolean;
   isDeliveryAgent: boolean;
   hasMultipleTenants: boolean;
+  // Feature check
+  isFeatureEnabled: (featureKey: string) => boolean;
   // Legacy compatibility
   admin: PlatformAdmin | null;
   login: (email: string, password: string) => Promise<void>;
@@ -243,11 +245,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: data.tenant.name,
       domain: data.tenant.domain || '',
       status: data.tenant.status || 'active',
+      features: data.tenant.features || []
     } : {
       tenant_id: tenantId,
       name: 'Restaurant',
       domain: '',
       status: 'active',
+      features: []
     };
 
     // Store in localStorage
@@ -276,7 +280,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else if (userType === 'delivery_agent') {
       router.push('/delivery');
     } else {
-      router.push('/order'); // Customer ordering page
+      router.push('/customer/menu'); // Customer ordering page
     }
   }, [router]);
 
@@ -295,12 +299,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
 
-    // Build tenant list
+    // Build tenant list with features
     const tenantList: Tenant[] = data.tenants.map((t: any) => ({
       tenant_id: t.tenant_id,
       name: t.name,
       domain: t.domain || '',
       status: t.status || 'active',
+      features: t.features || []
     }));
 
     const userType = getUserTypeFromRoles(data.user.roles || []);
@@ -470,6 +475,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isDeliveryAgent = state.userType === 'delivery_agent';
   const hasMultipleTenants = state.tenants.length > 1;
 
+  // Check if a feature is enabled for the selected tenant
+  // Super admins see everything, but platform admins and owners respect tenant features
+  const isFeatureEnabled = useCallback((featureKey: string): boolean => {
+    if (isSuperAdmin) return true; // Super admins see everything
+    if (!state.selectedTenant?.features) return true; // Default to enabled if no features loaded
+    const feature = state.selectedTenant.features.find(f => f.key === featureKey);
+    return feature?.enabled ?? true; // Default to enabled if feature not found
+  }, [isSuperAdmin, state.selectedTenant?.features]);
+
   const value: AuthContextType = {
     ...state,
     loginPlatformAdmin,
@@ -486,6 +500,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isCustomer,
     isDeliveryAgent,
     hasMultipleTenants,
+    isFeatureEnabled,
     // Legacy compatibility
     admin: state.platformAdmin,
     login: loginPlatformAdmin,

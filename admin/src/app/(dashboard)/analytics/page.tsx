@@ -18,6 +18,7 @@ import {
   Activity,
   Loader2
 } from 'lucide-react';
+import { FeatureGuard } from '@/components/FeatureGuard';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select } from '@/components/ui/select';
@@ -57,6 +58,14 @@ interface AnalyticsData {
 }
 
 export default function AnalyticsPage() {
+  return (
+    <FeatureGuard featureKey="ANALYTICS">
+      <AnalyticsPageContent />
+    </FeatureGuard>
+  );
+}
+
+function AnalyticsPageContent() {
   const router = useRouter();
   const authFetch = useAuthenticatedFetch();
   const [loading, setLoading] = useState(true);

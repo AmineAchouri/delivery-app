@@ -12,7 +12,13 @@ export async function login(req: Request, res: Response) {
     where: { tenant_id: tenantId, email },
     include: { 
       roles: { include: { role: { include: { permissions: { include: { permission: true } } } } } },
-      tenant: true
+      tenant: {
+        include: {
+          features: {
+            include: { feature: true }
+          }
+        }
+      }
     }
   });
   if (!user) return res.status(401).json({ message: 'Invalid credentials' });
@@ -40,7 +46,12 @@ export async function login(req: Request, res: Response) {
       tenant_id: user.tenant.tenant_id,
       name: user.tenant.name,
       domain: user.tenant.domain,
-      status: user.tenant.status
+      status: user.tenant.status,
+      features: user.tenant.features.map(tf => ({
+        key: tf.feature.feature_key,
+        enabled: tf.is_enabled,
+        description: tf.feature.description
+      }))
     }
   });
 }

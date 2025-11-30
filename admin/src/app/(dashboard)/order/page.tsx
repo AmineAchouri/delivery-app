@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { FeatureGuard } from '@/components/FeatureGuard';
 import { 
   ShoppingCart, 
   Plus, 
@@ -42,6 +43,14 @@ interface CartItem {
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
 export default function OrderPage() {
+  return (
+    <FeatureGuard featureKey="ORDERS">
+      <OrderPageContent />
+    </FeatureGuard>
+  );
+}
+
+function OrderPageContent() {
   const { selectedTenant, tenantUser, isCustomer } = useAuth();
   const authFetch = useAuthenticatedFetch();
   const { formatPrice } = useCurrency();

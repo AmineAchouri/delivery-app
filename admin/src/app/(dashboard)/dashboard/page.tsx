@@ -178,69 +178,81 @@ const RecentOrders = ({ orders }: { orders: Order[] }) => {
   );
 };
 
-const QuickActions = () => (
-  <div className="space-y-3">
-    <Link href="/order">
-      <Button variant="outline" className="w-full justify-start p-6 h-auto">
-        <div className="flex items-center space-x-4">
-          <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-            <ShoppingCart className="h-5 w-5" />
-          </div>
-          <div className="text-left">
-            <p className="font-medium">New Order</p>
-            <p className="text-sm text-gray-500">Create a new order</p>
-          </div>
-        </div>
-      </Button>
-    </Link>
-    
-    <Link href="/menu/items">
-      <Button variant="outline" className="w-full justify-start p-6 h-auto">
-        <div className="flex items-center space-x-4">
-          <div className="p-2 rounded-lg bg-green-100 text-green-600">
-            <Plus className="h-5 w-5" />
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Add Menu Item</p>
-            <p className="text-sm text-gray-500">Add new dish to the menu</p>
-          </div>
-        </div>
-      </Button>
-    </Link>
-    
-    <Link href="/customers">
-      <Button variant="outline" className="w-full justify-start p-6 h-auto">
-        <div className="flex items-center space-x-4">
-          <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-            <UserPlus className="h-5 w-5" />
-          </div>
-          <div className="text-left">
-            <p className="font-medium">Add Customer</p>
-            <p className="text-sm text-gray-500">Register a new customer</p>
-          </div>
-        </div>
-      </Button>
-    </Link>
-    
-    <Link href="/analytics">
-      <Button variant="outline" className="w-full justify-start p-6 h-auto">
-        <div className="flex items-center space-x-4">
-          <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
-            <BarChart2 className="h-5 w-5" />
-          </div>
-          <div className="text-left">
-            <p className="font-medium">View Reports</p>
-            <p className="text-sm text-gray-500">Analyze sales and performance</p>
-          </div>
-        </div>
-      </Button>
-    </Link>
-  </div>
-);
+const QuickActions = () => {
+  const { isFeatureEnabled } = useAuth();
+  
+  return (
+    <div className="space-y-3">
+      {isFeatureEnabled('ORDERS') && (
+        <Link href="/order">
+          <Button variant="outline" className="w-full justify-start p-6 h-auto">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
+                <ShoppingCart className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-medium">New Order</p>
+                <p className="text-sm text-gray-500">Create a new order</p>
+              </div>
+            </div>
+          </Button>
+        </Link>
+      )}
+      
+      {isFeatureEnabled('MENU') && (
+        <Link href="/menu/items">
+          <Button variant="outline" className="w-full justify-start p-6 h-auto">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 rounded-lg bg-green-100 text-green-600">
+                <Plus className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-medium">Add Menu Item</p>
+                <p className="text-sm text-gray-500">Add new dish to the menu</p>
+              </div>
+            </div>
+          </Button>
+        </Link>
+      )}
+      
+      {isFeatureEnabled('CUSTOMERS') && (
+        <Link href="/customers">
+          <Button variant="outline" className="w-full justify-start p-6 h-auto">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
+                <UserPlus className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-medium">Add Customer</p>
+                <p className="text-sm text-gray-500">Register a new customer</p>
+              </div>
+            </div>
+          </Button>
+        </Link>
+      )}
+      
+      {isFeatureEnabled('ANALYTICS') && (
+        <Link href="/analytics">
+          <Button variant="outline" className="w-full justify-start p-6 h-auto">
+            <div className="flex items-center space-x-4">
+              <div className="p-2 rounded-lg bg-amber-100 text-amber-600">
+                <BarChart2 className="h-5 w-5" />
+              </div>
+              <div className="text-left">
+                <p className="font-medium">View Reports</p>
+                <p className="text-sm text-gray-500">Analyze sales and performance</p>
+              </div>
+            </div>
+          </Button>
+        </Link>
+      )}
+    </div>
+  );
+};
 
 export default function DashboardPage() {
   const { formatPrice } = useCurrency();
-  const { selectedTenant, tenants, hasMultipleTenants, selectTenant, tenantSettings, fetchTenantSettings } = useAuth();
+  const { selectedTenant, tenants, hasMultipleTenants, selectTenant, tenantSettings, fetchTenantSettings, isFeatureEnabled } = useAuth();
   const authFetch = useAuthenticatedFetch();
   
   const [loading, setLoading] = useState(true);
@@ -366,26 +378,30 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link href="/menu">
-            <Button variant="outline" className="hidden sm:inline-flex">
-              <Utensils className="mr-2 h-4 w-4" />
-              Manage Menu
-            </Button>
-          </Link>
-          <Link href="/order">
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              New Order
-            </Button>
-          </Link>
+          {isFeatureEnabled('MENU') && (
+            <Link href="/menu">
+              <Button variant="outline" className="hidden sm:inline-flex">
+                <Utensils className="mr-2 h-4 w-4" />
+                Manage Menu
+              </Button>
+            </Link>
+          )}
+          {isFeatureEnabled('ORDERS') && (
+            <Link href="/order">
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                New Order
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
       
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="reports">Reports</TabsTrigger>
+          {isFeatureEnabled('ANALYTICS') && <TabsTrigger value="analytics">Analytics</TabsTrigger>}
+          {isFeatureEnabled('ANALYTICS') && <TabsTrigger value="reports">Reports</TabsTrigger>}
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
         
@@ -485,23 +501,27 @@ export default function DashboardPage() {
           )}
         </TabsContent>
         
-        <TabsContent value="analytics" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Analytics</CardTitle>
-              <CardDescription>Detailed analytics and insights coming soon.</CardDescription>
-            </CardHeader>
-          </Card>
-        </TabsContent>
+        {isFeatureEnabled('ANALYTICS') && (
+          <TabsContent value="analytics" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Analytics</CardTitle>
+                <CardDescription>Detailed analytics and insights coming soon.</CardDescription>
+              </CardHeader>
+            </Card>
+          </TabsContent>
+        )}
         
-        <TabsContent value="reports" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Reports</CardTitle>
-              <CardDescription>Generate and view reports here.</CardDescription>
-            </CardHeader>
-          </Card>
-        </TabsContent>
+        {isFeatureEnabled('ANALYTICS') && (
+          <TabsContent value="reports" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Reports</CardTitle>
+                <CardDescription>Generate and view reports here.</CardDescription>
+              </CardHeader>
+            </Card>
+          </TabsContent>
+        )}
         
         <TabsContent value="notifications" className="space-y-4">
           <Card>

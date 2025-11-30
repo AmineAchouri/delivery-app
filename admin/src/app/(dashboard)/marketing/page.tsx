@@ -2,8 +2,17 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { FeatureGuard } from '@/components/FeatureGuard';
 
 export default function MarketingPage() {
+  return (
+    <FeatureGuard featureKey="MARKETING">
+      <MarketingPageContent />
+    </FeatureGuard>
+  );
+}
+
+function MarketingPageContent() {
   const router = useRouter();
   
   useEffect(() => {

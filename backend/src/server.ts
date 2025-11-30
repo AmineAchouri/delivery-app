@@ -33,6 +33,8 @@ import { verifyHmac } from './utils/webhookVerify';
 import { tenantRateLimit } from './middleware/tenantRateLimit';
 import { getTenantConfig } from './services/tenantConfig';
 import { getConfig } from './controllers/tenantController';
+import { signTenantAccess, signTenantRefresh } from './services/auth';
+import bcrypt from 'bcrypt';
 import dashboardRoutes from './routes/dashboardRoutes';
 import platformAdminRoutes from './routes/platformAdmin.routes';
 import tenantRoutes from './routes/tenant.routes';
@@ -231,11 +233,10 @@ app.post('/api/auth/multi-login', async (req, res) => {
       where: { email: email.toLowerCase() },
       include: {
         tenant: {
-          select: {
-            tenant_id: true,
-            name: true,
-            domain: true,
-            status: true
+          include: {
+            features: {
+              include: { feature: true }
+            }
           }
         },
         roles: {
@@ -257,27 +258,23 @@ app.post('/api/auth/multi-login', async (req, res) => {
     }
 
     // Verify password against the first user (same password across tenants)
-    const bcrypt = require('bcrypt');
     const isValid = await bcrypt.compare(password, users[0].password_hash);
     if (!isValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate tokens for the primary tenant
-    const jwt = require('jsonwebtoken');
+    // Generate tokens for the primary tenant using proper auth service
     const primaryUser = users[0];
     
-    const accessToken = jwt.sign(
-      { sub: primaryUser.user_id, tenant_id: primaryUser.tenant_id },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '15m' }
-    );
+    const accessToken = signTenantAccess({
+      sub: primaryUser.user_id,
+      typ: 'tenant',
+      tenant_id: primaryUser.tenant_id,
+      roles: primaryUser.roles.map((r: any) => r.role.name),
+      perms: primaryUser.roles.flatMap((r: any) => r.role.permissions.map((p: any) => p.permission.name))
+    });
     
-    const refreshToken = jwt.sign(
-      { sub: primaryUser.user_id, tenant_id: primaryUser.tenant_id },
-      process.env.JWT_REFRESH_SECRET || 'your-refresh-secret',
-      { expiresIn: '7d' }
-    );
+    const refreshToken = await signTenantRefresh(primaryUser.user_id, primaryUser.tenant_id);
 
     // Build response with all tenants
     const tenants = users.map(u => ({
@@ -285,6 +282,11 @@ app.post('/api/auth/multi-login', async (req, res) => {
       name: u.tenant.name,
       domain: u.tenant.domain,
       status: u.tenant.status,
+      features: u.tenant.features.map(tf => ({
+        key: tf.feature.feature_key,
+        enabled: tf.is_enabled,
+        description: tf.feature.description
+      })),
       user_id: u.user_id,
       roles: u.roles.map(r => r.role.name),
       permissions: u.roles.flatMap(r => r.role.permissions.map(p => p.permission.name))

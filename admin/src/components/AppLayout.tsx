@@ -38,17 +38,18 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   superAdminOnly?: boolean;
+  featureKey?: string; // Feature key to check if this menu item should be visible
 }
 
 const mainNavItems: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Restaurants', href: '/restaurants', icon: Building2, superAdminOnly: true },
   { name: 'Platform Admins', href: '/platform-admins', icon: UserCog, superAdminOnly: true },
-  { name: 'Orders', href: '/orders', icon: ShoppingBag },
-  { name: 'Menu', href: '/menu', icon: UtensilsCrossed },
-  { name: 'Customers', href: '/customers', icon: Users },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
-  { name: 'Marketing', href: '/marketing', icon: Megaphone },
+  { name: 'Orders', href: '/orders', icon: ShoppingBag, featureKey: 'ORDERS' },
+  { name: 'Menu', href: '/menu', icon: UtensilsCrossed, featureKey: 'MENU' },
+  { name: 'Customers', href: '/customers', icon: Users, featureKey: 'CUSTOMERS' },
+  { name: 'Analytics', href: '/analytics', icon: BarChart3, featureKey: 'ANALYTICS' },
+  { name: 'Marketing', href: '/marketing', icon: Megaphone, featureKey: 'MARKETING' },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
@@ -72,7 +73,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
     isPlatformAdmin,
     isSuperAdmin,
     isTenantOwner,
-    userType
+    userType,
+    isFeatureEnabled
   } = useAuth();
 
   // Get display name and email based on user type
@@ -82,6 +84,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const displayEmail = isPlatformAdmin 
     ? (platformAdmin?.email || '')
     : (tenantUser?.email || '');
+
+  // Filter nav items based on user role and enabled features
+  const filteredNavItems = mainNavItems.filter(item => {
+    // Super admin only items
+    if (item.superAdminOnly && !isSuperAdmin) return false;
+    // Feature-gated items (only check for non-platform admins)
+    if (item.featureKey && !isFeatureEnabled(item.featureKey)) return false;
+    return true;
+  });
 
   useEffect(() => {
     setMounted(true);
@@ -109,14 +120,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const handleLogout = async () => {
     await logout();
   };
-
-  // Filter nav items based on role
-  const filteredNavItems = mainNavItems.filter(item => {
-    if (item.superAdminOnly && !isSuperAdmin) {
-      return false;
-    }
-    return true;
-  });
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return pathname === '/dashboard';

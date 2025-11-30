@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/table';
 import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { FeatureGuard } from '@/components/FeatureGuard';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -127,6 +128,14 @@ const statusColors = {
 };
 
 export default function CustomersPage() {
+  return (
+    <FeatureGuard featureKey="CUSTOMERS">
+      <CustomersPageContent />
+    </FeatureGuard>
+  );
+}
+
+function CustomersPageContent() {
   const router = useRouter();
   const { selectedTenant } = useAuth();
   const authFetch = useAuthenticatedFetch();

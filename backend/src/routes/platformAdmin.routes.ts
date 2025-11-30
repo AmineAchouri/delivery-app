@@ -133,18 +133,48 @@ router.post('/auth/login', async (req: Request, res: Response) => {
 
     const { accessToken, refreshToken } = await generateTokens(admin);
 
-    // Get accessible tenants
+    // Get accessible tenants with features
     let tenants;
     if (admin.role === 'SUPER_ADMIN') {
-      tenants = await prisma.tenant.findMany({
-        select: { tenant_id: true, name: true, domain: true, status: true }
+      const allTenants = await prisma.tenant.findMany({
+        include: {
+          features: {
+            include: { feature: true }
+          }
+        }
       });
+      tenants = allTenants.map(t => ({
+        tenant_id: t.tenant_id,
+        name: t.name,
+        domain: t.domain,
+        status: t.status,
+        features: t.features.map(tf => ({
+          key: tf.feature.feature_key,
+          enabled: tf.is_enabled,
+          description: tf.feature.description
+        }))
+      }));
     } else {
-      tenants = admin.assignedTenants.map(at => ({
-        tenant_id: at.tenant.tenant_id,
-        name: at.tenant.name,
-        domain: at.tenant.domain,
-        status: at.tenant.status
+      // For platform admins, get features for their assigned tenants
+      const assignedTenantIds = admin.assignedTenants.map(at => at.tenant.tenant_id);
+      const tenantsWithFeatures = await prisma.tenant.findMany({
+        where: { tenant_id: { in: assignedTenantIds } },
+        include: {
+          features: {
+            include: { feature: true }
+          }
+        }
+      });
+      tenants = tenantsWithFeatures.map(t => ({
+        tenant_id: t.tenant_id,
+        name: t.name,
+        domain: t.domain,
+        status: t.status,
+        features: t.features.map(tf => ({
+          key: tf.feature.feature_key,
+          enabled: tf.is_enabled,
+          description: tf.feature.description
+        }))
       }));
     }
 

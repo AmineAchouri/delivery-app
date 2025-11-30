@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuthenticatedFetch, useAuth } from '@/contexts/AuthContext';
+import { FeatureGuard } from '@/components/FeatureGuard';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
@@ -30,6 +31,14 @@ interface Menu {
 }
 
 export default function MenuPage() {
+  return (
+    <FeatureGuard featureKey="MENU">
+      <MenuPageContent />
+    </FeatureGuard>
+  );
+}
+
+function MenuPageContent() {
   const authFetch = useAuthenticatedFetch();
   const { selectedTenant, isPlatformAdmin } = useAuth();
   const [menus, setMenus] = useState<Menu[]>([]);
