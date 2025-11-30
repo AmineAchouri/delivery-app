@@ -25,8 +25,8 @@ RUN npx --prefix backend prisma generate --schema backend/prisma/schema.prisma
 # Build
 RUN npm run --prefix backend build
 
-# Prune dev deps
-RUN npm prune --omit=dev --prefix backend
+# Keep ts-node for seeding, then prune other dev deps
+RUN cd backend && npm prune --omit=dev --ignore-scripts
 
 FROM node:20-bullseye-slim AS runner
 WORKDIR /app/backend
@@ -38,6 +38,9 @@ COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/prisma ./prisma
 COPY --from=builder /app/backend/package.json ./package.json
 COPY --from=builder /app/openapi.yaml ./openapi.yaml
+COPY backend/docker-entrypoint.sh ./docker-entrypoint.sh
+
+RUN chmod +x ./docker-entrypoint.sh
 
 EXPOSE 3000
-CMD ["node", "dist/server.js"]
+CMD ["./docker-entrypoint.sh"]

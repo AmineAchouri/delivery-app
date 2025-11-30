@@ -12,7 +12,10 @@ async function proxyRequest(req: NextRequest, method: string) {
     // Extract path after /api/
     const url = new URL(req.url);
     const path = url.pathname.replace(/^\/api\//, '');
-    const backendUrl = `${BACKEND_URL}/api/${path}${url.search}`;
+    
+    // Remove trailing slash from BACKEND_URL to avoid double slashes
+    const backendBase = BACKEND_URL.replace(/\/$/, '');
+    const backendUrl = `${backendBase}/api/${path}${url.search}`;
 
     console.log(`[Proxy] ${method} ${path} -> ${backendUrl}`);
 
