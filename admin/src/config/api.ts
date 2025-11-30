@@ -1,5 +1,6 @@
 // admin/src/config/api.ts
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// Frontend calls its own Next.js API routes, which proxy to the backend
+const API_BASE_URL = '/api';
 
 export const API_ENDPOINTS = {
   AUTH: {

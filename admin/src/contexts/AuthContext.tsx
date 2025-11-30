@@ -82,7 +82,8 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+// Use local Next.js API proxy (which forwards to backend)
+const API_BASE_URL = '';
 
 // Helper to determine user type from roles
 function getUserTypeFromRoles(roles: string[]): UserType {
