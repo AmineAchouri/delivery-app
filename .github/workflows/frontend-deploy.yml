@@ -288,11 +288,31 @@ jobs:
           REV="${{ steps.final_rev.outputs.revision }}"
           
           echo "Updating existing service..."
-          aws ecs update-service \
+          
+          # Check if service has canary deployment strategy
+          DEPLOYMENT_STRATEGY=$(aws ecs describe-services \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
-            --service '${{ github.event.inputs.ecs_service }}' \
-            --task-definition $TASKDEF_FAMILY:$REV \
-            --force-new-deployment
+            --services '${{ github.event.inputs.ecs_service }}' \
+            --query 'services[0].deploymentConfiguration.strategy' \
+            --output text 2>/dev/null || echo "ROLLING_UPDATE")
+          
+          if [ "$DEPLOYMENT_STRATEGY" = "CANARY" ]; then
+            echo "Service uses CANARY deployment strategy - switching to ROLLING_UPDATE for simpler deployments"
+            aws ecs update-service \
+              --cluster '${{ github.event.inputs.ecs_cluster }}' \
+              --service '${{ github.event.inputs.ecs_service }}' \
+              --task-definition $TASKDEF_FAMILY:$REV \
+              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100" \
+              --force-new-deployment
+          else
+            echo "Service uses $DEPLOYMENT_STRATEGY deployment strategy"
+            aws ecs update-service \
+              --cluster '${{ github.event.inputs.ecs_cluster }}' \
+              --service '${{ github.event.inputs.ecs_service }}' \
+              --task-definition $TASKDEF_FAMILY:$REV \
+              --force-new-deployment
+          fi
+          
           echo "Service updated successfully"
       
       - name: Wait for service stability
