@@ -262,13 +262,14 @@ jobs:
           echo "  Subnets: $SUBNETS"
           echo "  Security Group: $SECURITY_GROUP"
           
-          # Base create-service command
+          # Base create-service command with rolling update deployment
           CREATE_CMD="aws ecs create-service \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
             --service-name '${{ github.event.inputs.ecs_service }}' \
             --task-definition $TASKDEF_FAMILY:$REV \
             --desired-count 1 \
             --launch-type FARGATE \
+            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100' \
             --network-configuration 'awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}'"
           
           # Add load balancer if target group is provided
@@ -287,46 +288,12 @@ jobs:
           TASKDEF_FAMILY="delivery-frontend-${{ github.event.inputs.env }}"
           REV="${{ steps.final_rev.outputs.revision }}"
           
-          echo "Updating existing service..."
-          
-          # Check if service has canary deployment strategy
-          DEPLOYMENT_STRATEGY=$(aws ecs describe-services \
+          echo "Updating existing service with rolling update..."
+          aws ecs update-service \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
-            --services '${{ github.event.inputs.ecs_service }}' \
-            --query 'services[0].deploymentConfiguration.strategy' \
-            --output text 2>/dev/null || echo "ROLLING_UPDATE")
-          
-          if [ "$DEPLOYMENT_STRATEGY" = "CANARY" ]; then
-            echo "⚠️  Service uses CANARY deployment strategy"
-            echo "Step 1: Switching to ROLLING_UPDATE deployment strategy..."
-            
-            # First, switch deployment strategy without updating task definition
-            aws ecs update-service \
-              --cluster '${{ github.event.inputs.ecs_cluster }}' \
-              --service '${{ github.event.inputs.ecs_service }}' \
-              --deployment-configuration "deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100" \
-              --no-cli-pager > /dev/null
-            
-            echo "✅ Deployment strategy updated to ROLLING_UPDATE"
-            echo "Step 2: Deploying new task definition..."
-            
-            # Wait a moment for the configuration change to propagate
-            sleep 2
-            
-            # Now update with new task definition
-            aws ecs update-service \
-              --cluster '${{ github.event.inputs.ecs_cluster }}' \
-              --service '${{ github.event.inputs.ecs_service }}' \
-              --task-definition $TASKDEF_FAMILY:$REV \
-              --force-new-deployment
-          else
-            echo "Service uses $DEPLOYMENT_STRATEGY deployment strategy"
-            aws ecs update-service \
-              --cluster '${{ github.event.inputs.ecs_cluster }}' \
-              --service '${{ github.event.inputs.ecs_service }}' \
-              --task-definition $TASKDEF_FAMILY:$REV \
-              --force-new-deployment
-          fi
+            --service '${{ github.event.inputs.ecs_service }}' \
+            --task-definition $TASKDEF_FAMILY:$REV \
+            --force-new-deployment
           
           echo "✅ Service updated successfully"
       
