@@ -1,6 +1,10 @@
 // API Proxy - forwards all requests to backend
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 const BACKEND_URL = process.env.BACKEND_API_URL || 'http://localhost:3000';
 
 async function proxyRequest(req: NextRequest, method: string) {
