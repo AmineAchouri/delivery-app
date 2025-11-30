@@ -31,6 +31,7 @@ model User {
   status        String
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+  last_active   DateTime? // Add this line if it doesn't exist
 
   tenant        Tenant         @relation(fields: [tenant_id], references: [tenant_id], onDelete: Cascade)
   roles         UserRole[]

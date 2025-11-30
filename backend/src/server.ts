@@ -33,6 +33,7 @@ import { verifyHmac } from './utils/webhookVerify';
 import { tenantRateLimit } from './middleware/tenantRateLimit';
 import { getTenantConfig } from './services/tenantConfig';
 import { getConfig } from './controllers/tenantController';
+import dashboardRoutes from './routes/dashboardRoutes';
 
 const app = express();
 
@@ -47,6 +48,10 @@ app.post('/payments/webhook', express.raw({ type: 'application/json' }), (req, r
   const event = JSON.parse(raw.toString('utf8'));
   return paymentWebhook(event, res);
 });
+
+// Auth routes
+app.post('/api/auth/login', validate(loginSchema), login);
+app.post('/api/auth/refresh', validate(refreshSchema), refresh);
 
 // JSON parser AFTER webhook
 app.use(express.json());
@@ -69,10 +74,12 @@ app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
 
-// CORS (tighten in prod)
+// Update CORS configuration
 app.use(cors({
-  origin: [/^http:\/\/localhost:\d+$/],
-  credentials: true
+  origin: 'http://localhost:3001', // Allow frontend origin
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Id']
 }));
 
 // Request logging
@@ -126,6 +133,9 @@ app.get('/readyz', async (_req, res) => {
     res.status(503).json({ status: 'unavailable' });
   }
 });
+
+// Add this with other route registrations
+app.use('/api/dashboard', dashboardRoutes);
 
 // Auth
 app.post('/auth/login', tenantContext, validate(loginSchema), login);
@@ -210,7 +220,7 @@ async function getOrCreateCart(prisma: PrismaClient, tenantId: string, userId: s
 }
 
 // Start server
-const PORT = Number(process.env.PORT ?? 3000);
+const PORT = Number(process.env.PORT ?? 3002);
 const HOST = '0.0.0.0'; // <-- add this
 app.use(errorHandler);
 app.listen(PORT, HOST, () => {

@@ -1,0 +1,11 @@
+.container {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+.content {
+  flex: 1;
+  padding: 40px 48px;
+  background: #f8fafc;
+  box-shadow: 0 0 16px #64748b11;
+}
