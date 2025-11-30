@@ -16,6 +16,15 @@ on:
       ecs_service:
         description: ECS service name
         required: true
+      vpc_subnets:
+        description: Comma-separated subnet IDs for service (required for new service)
+        required: false
+      security_groups:
+        description: Comma-separated security group IDs for service (required for new service)
+        required: false
+      target_group_arn:
+        description: Target group ARN for load balancer (optional)
+        required: false
 jobs:
   build-image:
     runs-on: ubuntu-latest
@@ -73,17 +82,142 @@ jobs:
               -e "s|\${TASKDEF_FAMILY}|delivery-frontend-${{ github.event.inputs.env }}|g" \
               infra/admin-frontend-taskdef.template.json > taskdef.json
           cat taskdef.json
-      - name: Register task definition
+      - name: Check for task definition changes
+        id: check_taskdef
+        run: |
+          TASKDEF_FAMILY="delivery-frontend-${{ github.event.inputs.env }}"
+          
+          # Get the latest active task definition
+          LATEST_TASKDEF=$(aws ecs describe-task-definition \
+            --task-definition $TASKDEF_FAMILY \
+            --query 'taskDefinition' \
+            --output json 2>/dev/null || echo "{}")
+          
+          if [ "$LATEST_TASKDEF" = "{}" ]; then
+            echo "No existing task definition found"
+            echo "needs_registration=true" >> "$GITHUB_OUTPUT"
+            echo "existing_revision=0" >> "$GITHUB_OUTPUT"
+          else
+            # Extract relevant fields for comparison (excluding metadata)
+            EXISTING_DEF=$(echo "$LATEST_TASKDEF" | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            NEW_DEF=$(cat taskdef.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            
+            # Compare the definitions
+            if [ "$EXISTING_DEF" = "$NEW_DEF" ]; then
+              EXISTING_REV=$(echo "$LATEST_TASKDEF" | jq -r '.revision')
+              echo "Task definition unchanged, reusing revision $EXISTING_REV"
+              echo "needs_registration=false" >> "$GITHUB_OUTPUT"
+              echo "existing_revision=$EXISTING_REV" >> "$GITHUB_OUTPUT"
+            else
+              echo "Task definition has changes, will register new revision"
+              echo "needs_registration=true" >> "$GITHUB_OUTPUT"
+              EXISTING_REV=$(echo "$LATEST_TASKDEF" | jq -r '.revision')
+              echo "existing_revision=$EXISTING_REV" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+      
+      - name: Register new task definition
         id: reg
+        if: steps.check_taskdef.outputs.needs_registration == 'true'
         run: |
           REV=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.revision" --output text)
           echo "rev=$REV" >> "$GITHUB_OUTPUT"
-      - name: Update service
+          echo "Registered new task definition revision: $REV"
+      
+      - name: Use existing task definition
+        id: use_existing
+        if: steps.check_taskdef.outputs.needs_registration == 'false'
         run: |
+          REV="${{ steps.check_taskdef.outputs.existing_revision }}"
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
+          echo "Using existing task definition revision: $REV"
+      
+      - name: Set final revision
+        id: final_rev
+        run: |
+          if [ "${{ steps.check_taskdef.outputs.needs_registration }}" = "true" ]; then
+            REV="${{ steps.reg.outputs.rev }}"
+          else
+            REV="${{ steps.use_existing.outputs.rev }}"
+          fi
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+          echo "Final revision to deploy: $REV"
+      
+      - name: Check if service exists
+        id: check_service
+        run: |
+          if aws ecs describe-services \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}' \
+            --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Service exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Service does not exist"
+          fi
+      
+      - name: Create service if not exists
+        if: steps.check_service.outputs.exists == 'false'
+        run: |
+          TASKDEF_FAMILY="delivery-frontend-${{ github.event.inputs.env }}"
+          REV="${{ steps.final_rev.outputs.revision }}"
+          
+          # Check if required parameters are provided
+          if [ -z "${{ github.event.inputs.vpc_subnets }}" ] || [ -z "${{ github.event.inputs.security_groups }}" ]; then
+            echo "Error: vpc_subnets and security_groups are required to create a new service"
+            exit 1
+          fi
+          
+          # Build network configuration
+          SUBNETS="${{ github.event.inputs.vpc_subnets }}"
+          SECURITY_GROUPS="${{ github.event.inputs.security_groups }}"
+          
+          # Base create-service command
+          CREATE_CMD="aws ecs create-service \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --service-name '${{ github.event.inputs.ecs_service }}' \
+            --task-definition $TASKDEF_FAMILY:$REV \
+            --desired-count 1 \
+            --launch-type FARGATE \
+            --network-configuration 'awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=ENABLED}'"
+          
+          # Add load balancer if target group is provided
+          if [ -n "${{ github.event.inputs.target_group_arn }}" ]; then
+            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=frontend,containerPort=80"
+          fi
+          
+          echo "Creating service..."
+          eval $CREATE_CMD
+          echo "Service created successfully"
+      
+      - name: Update existing service
+        if: steps.check_service.outputs.exists == 'true'
+        run: |
+          TASKDEF_FAMILY="delivery-frontend-${{ github.event.inputs.env }}"
+          REV="${{ steps.final_rev.outputs.revision }}"
+          
+          echo "Updating existing service..."
           aws ecs update-service \
             --cluster '${{ github.event.inputs.ecs_cluster }}' \
             --service '${{ github.event.inputs.ecs_service }}' \
-            --task-definition delivery-frontend-${{ github.event.inputs.env }}:${{ steps.reg.outputs.rev }} \
+            --task-definition $TASKDEF_FAMILY:$REV \
             --force-new-deployment
-      - name: Wait stable
-        run: aws ecs wait services-stable --cluster '${{ github.event.inputs.ecs_cluster }}' --services '${{ github.event.inputs.ecs_service }}'
+          echo "Service updated successfully"
+      
+      - name: Wait for service stability
+        run: |
+          echo "Waiting for service to become stable..."
+          aws ecs wait services-stable \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}'
+          echo "Service is stable"
+      
+      - name: Display service status
+        run: |
+          echo "=== Service Status ==="
+          aws ecs describe-services \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}' \
+            --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' \
+            --output table
