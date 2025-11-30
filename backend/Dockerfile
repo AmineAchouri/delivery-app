@@ -25,8 +25,8 @@ RUN npx --prefix backend prisma generate --schema backend/prisma/schema.prisma
 # Build
 RUN npm run --prefix backend build
 
-# Keep ts-node for seeding, then prune other dev deps
-RUN cd backend && npm prune --omit=dev --ignore-scripts
+# Don't prune dev deps yet - we need ts-node and TypeScript for seeding
+# RUN cd backend && npm prune --omit=dev --ignore-scripts
 
 FROM node:20-bullseye-slim AS runner
 WORKDIR /app/backend
@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -
 COPY --from=builder /app/backend/node_modules ./node_modules
 COPY --from=builder /app/backend/dist ./dist
 COPY --from=builder /app/backend/prisma ./prisma
+COPY --from=builder /app/backend/src ./src
+COPY --from=builder /app/backend/tsconfig.json ./tsconfig.json
 COPY --from=builder /app/backend/package.json ./package.json
 COPY --from=builder /app/openapi.yaml ./openapi.yaml
 COPY backend/docker-entrypoint.sh ./docker-entrypoint.sh
