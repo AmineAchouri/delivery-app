@@ -87,7 +87,7 @@ jobs:
           
           # Use default backend API URL if not provided
           if [ -z "$BACKEND_API_URL" ]; then
-            BACKEND_API_URL="http://localhost:3000"
+            BACKEND_API_URL="https://de-1776d05c524b49cba2db0d34a69e6775.ecs.us-east-1.on.aws"
           fi
           
           sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \

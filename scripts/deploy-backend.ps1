@@ -5,7 +5,7 @@ Write-Host "=== Backend Deployment Script ===" -ForegroundColor Cyan
 Write-Host ""
 
 $CLUSTER = "delivery-test-cluster"
-$SERVICE = "delivery-core-api-0541"
+$SERVICE = "delivery-core-api-04c4"
 $REGION = "us-east-1"
 
 # Step 1: Stop current tasks

@@ -4,7 +4,7 @@
 Write-Host "=== Testing Backend API ===" -ForegroundColor Cyan
 Write-Host ""
 
-$BACKEND_URL = "https://de-ae284ca324ad4a29b4d24c38e3564857.ecs.us-east-1.on.aws"
+$BACKEND_URL = "https://de-1776d05c524b49cba2db0d34a69e6775.ecs.us-east-1.on.aws"
 
 # Test 1: Health Check
 Write-Host "Test 1: Health Check" -ForegroundColor Yellow
