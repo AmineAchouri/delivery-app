@@ -19,9 +19,14 @@ export const API_ENDPOINTS = {
     UPDATE_STATUS: (id: string | number) => `${API_BASE_URL}/orders/${id}/status`,
   },
   MENUS: {
-    LIST: `${API_BASE_URL}/menu`,
-    // Note: Backend only provides /menu endpoint that returns full menu tree
-    // No separate endpoints for categories or items - they're nested in the menu response
+    LIST: `${API_BASE_URL}/menus`,
+    CATEGORIES: (menuId: string | number) => `${API_BASE_URL}/menus/${menuId}/categories`,
+    CATEGORY_ITEMS: (categoryId: string | number) => `${API_BASE_URL}/categories/${categoryId}/items`,
+    ITEM_DETAIL: (itemId: string | number) => `${API_BASE_URL}/items/${itemId}`,
+  },
+  ADMIN: {
+    CATEGORIES: `${API_BASE_URL}/admin/categories`,
+    CATEGORY_DETAIL: (id: string | number) => `${API_BASE_URL}/admin/categories/${id}`,
   },
   CUSTOMERS: {
     LIST: `${API_BASE_URL}/customers`,

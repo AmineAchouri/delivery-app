@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { API_ENDPOINTS } from '@/config/api';
 
 interface Category {
   category_id: string;
@@ -32,8 +33,6 @@ interface Menu {
   menu_id: string;
   name: string;
 }
-
-const API_BASE_URL = '';
 
 export default function CategoriesPage() {
   const authFetch = useAuthenticatedFetch();
@@ -62,13 +61,13 @@ export default function CategoriesPage() {
     
     const fetchMenus = async () => {
       try {
-        const response = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
+        const response = await authFetch(API_ENDPOINTS.MENUS.LIST);
         if (response.ok) {
           const data = await response.json();
           
           // If no menus exist, create a default one
           if (data.length === 0) {
-            const createRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`, {
+            const createRes = await authFetch(API_ENDPOINTS.MENUS.LIST, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: 'Main Menu' })
@@ -103,13 +102,13 @@ export default function CategoriesPage() {
     const fetchCategories = async () => {
       setLoading(true);
       try {
-        const response = await authFetch(`${API_BASE_URL}/api/tenant/menu/${selectedMenu}/categories`);
+        const response = await authFetch(API_ENDPOINTS.MENUS.CATEGORIES(selectedMenu));
         if (response.ok) {
           const cats = await response.json();
           // Fetch item count for each category
           const catsWithCount = await Promise.all(
             cats.map(async (cat: Category) => {
-              const itemsRes = await authFetch(`${API_BASE_URL}/categories/${cat.category_id}/items`);
+              const itemsRes = await authFetch(API_ENDPOINTS.MENUS.CATEGORY_ITEMS(cat.category_id));
               const items = itemsRes.ok ? await itemsRes.json() : [];
               return { ...cat, item_count: items.length };
             })
@@ -131,12 +130,12 @@ export default function CategoriesPage() {
     if (!selectedMenu) return;
     setLoading(true);
     try {
-      const response = await authFetch(`${API_BASE_URL}/api/tenant/menu/${selectedMenu}/categories`);
+      const response = await authFetch(API_ENDPOINTS.MENUS.CATEGORIES(selectedMenu));
       if (response.ok) {
         const cats = await response.json();
         const catsWithCount = await Promise.all(
           cats.map(async (cat: Category) => {
-            const itemsRes = await authFetch(`${API_BASE_URL}/categories/${cat.category_id}/items`);
+            const itemsRes = await authFetch(API_ENDPOINTS.MENUS.CATEGORY_ITEMS(cat.category_id));
             const items = itemsRes.ok ? await itemsRes.json() : [];
             return { ...cat, item_count: items.length };
           })
@@ -163,13 +162,13 @@ export default function CategoriesPage() {
     try {
       let response;
       if (editingCategory) {
-        response = await authFetch(`${API_BASE_URL}/admin/categories/${editingCategory.category_id}`, {
+        response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORY_DETAIL(editingCategory.category_id), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        response = await authFetch(`${API_BASE_URL}/admin/categories`, {
+        response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORIES, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -200,7 +199,7 @@ export default function CategoriesPage() {
     if (!confirm('Are you sure you want to delete this category? All items in this category will also be deleted.')) return;
     
     try {
-      const response = await authFetch(`${API_BASE_URL}/admin/categories/${categoryId}`, {
+      const response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORY_DETAIL(categoryId), {
         method: 'DELETE'
       });
       
