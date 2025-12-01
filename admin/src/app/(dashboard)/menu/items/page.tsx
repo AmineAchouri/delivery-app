@@ -38,7 +38,7 @@ interface Category {
   name: string;
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 export default function MenuItemsPage() {
   const { isTenantOwner, isPlatformAdmin, selectedTenant } = useAuth();

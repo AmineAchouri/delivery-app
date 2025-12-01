@@ -39,7 +39,7 @@ import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { FeatureGuard } from '@/components/FeatureGuard';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface Customer {
   id: string;

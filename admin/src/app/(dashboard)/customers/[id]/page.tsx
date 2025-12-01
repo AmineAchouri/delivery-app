@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface Customer {
   id: string;

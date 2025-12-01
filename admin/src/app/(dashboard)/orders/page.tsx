@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface Order {
   id: string;

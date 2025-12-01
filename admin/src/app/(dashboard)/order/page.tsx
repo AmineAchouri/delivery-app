@@ -40,7 +40,7 @@ interface CartItem {
   quantity: number;
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 export default function OrderPage() {
   return (

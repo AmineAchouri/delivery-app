@@ -16,7 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface Category {
   category_id: string;

@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface BusinessSettings {
   name: string;

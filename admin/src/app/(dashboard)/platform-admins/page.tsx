@@ -40,7 +40,7 @@ interface Tenant {
   domain: string;
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 export default function PlatformAdminsPage() {
   const { isSuperAdmin, platformAdmin } = useAuth();

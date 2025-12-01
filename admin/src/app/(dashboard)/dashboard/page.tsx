@@ -36,7 +36,7 @@ import { Badge } from '@/components/ui/badge';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 type OrderStatus = 'pending' | 'confirmed' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
 

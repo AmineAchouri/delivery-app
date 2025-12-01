@@ -25,7 +25,7 @@ import { Select } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { useCurrency } from '@/contexts/CurrencyContext';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface MetricCard {
   title: string;

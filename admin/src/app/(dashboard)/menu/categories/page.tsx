@@ -33,7 +33,7 @@ interface Menu {
   name: string;
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 export default function CategoriesPage() {
   const authFetch = useAuthenticatedFetch();

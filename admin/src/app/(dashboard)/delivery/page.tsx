@@ -29,7 +29,7 @@ interface Order {
   items: { name: string; quantity: number }[];
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered'];
 

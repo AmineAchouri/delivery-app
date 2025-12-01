@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 interface OrderItem {
   id?: string | number;

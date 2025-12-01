@@ -51,7 +51,7 @@ interface Tenant {
   };
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = '';
 
 export default function RestaurantsPage() {
   const { isSuperAdmin } = useAuth();
