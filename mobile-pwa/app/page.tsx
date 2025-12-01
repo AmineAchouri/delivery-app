@@ -37,8 +37,19 @@ export default function HomePage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-orange-50 to-white">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="relative mb-6">
+            <div className="text-7xl animate-bounce">🍽️</div>
+            <div className="absolute -top-2 -right-2 text-3xl animate-spin">✨</div>
+          </div>
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <span className="text-3xl animate-pulse" style={{ animationDelay: '0s' }}>🍕</span>
+            <span className="text-3xl animate-pulse" style={{ animationDelay: '0.1s' }}>🍔</span>
+            <span className="text-3xl animate-pulse" style={{ animationDelay: '0.2s' }}>🍝</span>
+            <span className="text-3xl animate-pulse" style={{ animationDelay: '0.3s' }}>🌮</span>
+            <span className="text-3xl animate-pulse" style={{ animationDelay: '0.4s' }}>🍰</span>
+          </div>
+          <p className="text-lg font-semibold text-gray-700">Finding your restaurant...</p>
+          <p className="text-sm text-gray-500 mt-2">Get ready for deliciousness! 😋</p>
         </div>
       </div>
     );

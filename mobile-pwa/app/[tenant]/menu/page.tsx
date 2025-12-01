@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ShoppingCart, Search, ChevronRight } from 'lucide-react';
+import CartDropdown from '@/components/CartDropdown';
+import OrderHistory from '@/components/OrderHistory';
 
 interface MenuItem {
   itemId: string;
@@ -52,7 +54,17 @@ export default function MenuPage() {
         const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 
                           'http://localhost:3000';
         
-        const response = await fetch(`${backendUrl}/api/public/tenant/menu?tenantId=${tenant}`);
+        // First, get tenant config to resolve tenant slug to UUID
+        // Convert slug (bella-italia) to domain format
+        const domain = `${tenant}.com`;
+        const configResponse = await fetch(`${backendUrl}/api/public/tenant/config?domain=${domain}`);
+        if (!configResponse.ok) throw new Error('Tenant not found');
+        
+        const config = await configResponse.json();
+        const tenantId = config.tenantId; // This is the UUID
+        
+        // Now fetch the menu using the UUID
+        const response = await fetch(`${backendUrl}/api/public/tenant/menu?tenantId=${tenantId}`);
         
         if (!response.ok) throw new Error('Failed to load menu');
         
@@ -71,9 +83,63 @@ export default function MenuPage() {
     };
 
     loadMenu();
+
+    // Listen for cart cleared event from dropdown
+    const handleCartCleared = (event: CustomEvent) => {
+      if (event.detail?.tenant === tenant) {
+        setCart({});
+      }
+    };
+
+    window.addEventListener('cartCleared', handleCartCleared as EventListener);
+
+    return () => {
+      window.removeEventListener('cartCleared', handleCartCleared as EventListener);
+    };
   }, [tenant]);
 
   const addToCart = (itemId: string) => {
+    if (!menuData) return;
+
+    // Find the item details
+    let itemDetails = null;
+    for (const menu of menuData.menus) {
+      for (const category of menu.categories) {
+        const found = category.items.find(i => i.itemId === itemId);
+        if (found) {
+          itemDetails = found;
+          break;
+        }
+      }
+      if (itemDetails) break;
+    }
+
+    if (!itemDetails) return;
+
+    // Load existing cart from localStorage
+    const savedCart = localStorage.getItem(`cart_${tenant}`);
+    const cartItems = savedCart ? JSON.parse(savedCart) : [];
+
+    // Check if item already in cart
+    const existingIndex = cartItems.findIndex((item: any) => item.itemId === itemId);
+    if (existingIndex >= 0) {
+      cartItems[existingIndex].quantity += 1;
+    } else {
+      cartItems.push({
+        itemId: itemDetails.itemId,
+        name: itemDetails.name,
+        description: itemDetails.description,
+        price: itemDetails.price,
+        quantity: 1
+      });
+    }
+
+    // Save to localStorage
+    localStorage.setItem(`cart_${tenant}`, JSON.stringify(cartItems));
+    localStorage.setItem(`tenantName_${tenant}`, menuData.tenantName);
+    localStorage.setItem(`currency_${tenant}`, menuData.currency);
+
+    // Update local state for UI
     setCart(prev => ({
       ...prev,
       [itemId]: (prev[itemId] || 0) + 1
@@ -90,10 +156,16 @@ export default function MenuPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-orange-50 to-white">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading menu...</p>
+          <div className="text-6xl mb-4 animate-bounce">🍕</div>
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <span className="text-4xl animate-pulse" style={{ animationDelay: '0s' }}>🍝</span>
+            <span className="text-4xl animate-pulse" style={{ animationDelay: '0.2s' }}>🍔</span>
+            <span className="text-4xl animate-pulse" style={{ animationDelay: '0.4s' }}>🍰</span>
+          </div>
+          <p className="text-lg font-semibold text-gray-700">Preparing your menu...</p>
+          <p className="text-sm text-gray-500 mt-2">Almost ready! 🧑‍🍳</p>
         </div>
       </div>
     );
@@ -111,11 +183,39 @@ export default function MenuPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24">
-      {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">{menuData.tenantName}</h1>
-          <p className="text-sm text-gray-500">Menu</p>
+      {/* Header with Auth Buttons */}
+      <div className="bg-white border-b sticky top-0 z-10 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4">
+          {/* Top Bar with Auth and Cart */}
+          <div className="flex items-center justify-between py-3 border-b">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl">🍕</span>
+              <span className="font-bold text-lg">{menuData.tenantName}</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => alert('Sign In coming soon!\n\nYou can place orders as a guest for now.')}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 rounded-full transition"
+              >
+                Sign in
+              </button>
+              <button
+                onClick={() => alert('Join coming soon!\n\nCreate an account to track orders and save favorites.')}
+                className="px-4 py-2 text-sm font-semibold bg-black text-white hover:bg-gray-800 rounded-full transition"
+              >
+                Join now
+              </button>
+              <div className="h-8 w-px bg-gray-300" />
+              <OrderHistory tenant={tenant} />
+              <CartDropdown tenant={tenant} />
+            </div>
+          </div>
+          
+          {/* Menu Title */}
+          <div className="py-4">
+            <h1 className="text-2xl font-bold text-gray-900">Menu</h1>
+            <p className="text-sm text-gray-600">Order for pickup or delivery</p>
+          </div>
         </div>
       </div>
 
