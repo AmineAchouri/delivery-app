@@ -1,11 +1,11 @@
 {
-  "family": "delivery-mobile-pwa",
+  "family": "${TASKDEF_FAMILY}",
   "networkMode": "awsvpc",
   "requiresCompatibilities": ["FARGATE"],
   "cpu": "256",
   "memory": "512",
-  "executionRoleArn": "${ECS_EXEC_ROLE_ARN}",
-  "taskRoleArn": "${ECS_TASK_ROLE_ARN}",
+  "executionRoleArn": "${EXEC_ROLE_ARN}",
+  "taskRoleArn": "${TASK_ROLE_ARN}",
   "containerDefinitions": [
     {
       "name": "mobile-pwa",
@@ -34,8 +34,8 @@
       "logConfiguration": {
         "logDriver": "awslogs",
         "options": {
-          "awslogs-group": "${ECS_LOG_GROUP}",
-          "awslogs-region": "us-east-1",
+          "awslogs-group": "${LOG_GROUP}",
+          "awslogs-region": "${AWS_REGION}",
           "awslogs-stream-prefix": "mobile-pwa"
         }
       },

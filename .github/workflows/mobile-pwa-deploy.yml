@@ -136,6 +136,20 @@ jobs:
               infra/mobile-pwa-taskdef.template.json > taskdef.json
           cat taskdef.json
       
+      - name: Ensure CloudWatch log group exists
+        run: |
+          LOG_GROUP="/aws/ecs/delivery-mobile-pwa-${{ github.event.inputs.env }}"
+          echo "Checking if log group exists: $LOG_GROUP"
+          
+          if aws logs describe-log-groups --log-group-name-prefix "$LOG_GROUP" --query "logGroups[?logGroupName=='$LOG_GROUP']" --output text | grep -q "$LOG_GROUP"; then
+            echo "✅ Log group already exists"
+          else
+            echo "Creating log group: $LOG_GROUP"
+            aws logs create-log-group --log-group-name "$LOG_GROUP"
+            aws logs put-retention-policy --log-group-name "$LOG_GROUP" --retention-in-days 7
+            echo "✅ Log group created with 7-day retention"
+          fi
+      
       - name: Check for task definition changes
         id: check_taskdef
         run: |
