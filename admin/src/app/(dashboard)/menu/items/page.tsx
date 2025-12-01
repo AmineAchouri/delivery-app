@@ -75,7 +75,7 @@ export default function MenuItemsPage() {
     const fetchData = async () => {
       try {
         // Fetch menus first
-        const menusRes = await authFetch(`${API_BASE_URL}/menus`);
+        const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
         if (!menusRes.ok) throw new Error('Failed to fetch menus');
         let menus = await menusRes.json();
         
@@ -97,7 +97,7 @@ export default function MenuItemsPage() {
         }
 
         // Fetch categories
-        const catsRes = await authFetch(`${API_BASE_URL}/menus/${menus[0].menu_id}/categories`);
+        const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menus[0].menu_id}/categories`);
         if (catsRes.ok) {
           const cats = await catsRes.json();
           setCategories(cats);

@@ -57,7 +57,7 @@ function MenuPageContent() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const menusRes = await authFetch(`${API_BASE_URL}/menus`);
+        const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
         if (menusRes.ok) {
           let menusData = await menusRes.json();
           
@@ -78,7 +78,7 @@ function MenuPageContent() {
           setMenus(menusData);
 
           if (menusData.length > 0) {
-            const catsRes = await authFetch(`${API_BASE_URL}/menus/${menusData[0].menu_id}/categories`);
+            const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menusData[0].menu_id}/categories`);
             if (catsRes.ok) {
               const catsData = await catsRes.json();
               
@@ -111,13 +111,13 @@ function MenuPageContent() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const menusRes = await authFetch(`${API_BASE_URL}/menus`);
+      const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
       if (menusRes.ok) {
         const menusData = await menusRes.json();
         setMenus(menusData);
 
         if (menusData.length > 0) {
-          const catsRes = await authFetch(`${API_BASE_URL}/menus/${menusData[0].menu_id}/categories`);
+          const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menusData[0].menu_id}/categories`);
           if (catsRes.ok) {
             const catsData = await catsRes.json();
             let total = 0;

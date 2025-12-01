@@ -62,7 +62,7 @@ export default function CategoriesPage() {
     
     const fetchMenus = async () => {
       try {
-        const response = await authFetch(`${API_BASE_URL}/menus`);
+        const response = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
         if (response.ok) {
           const data = await response.json();
           
@@ -103,7 +103,7 @@ export default function CategoriesPage() {
     const fetchCategories = async () => {
       setLoading(true);
       try {
-        const response = await authFetch(`${API_BASE_URL}/menus/${selectedMenu}/categories`);
+        const response = await authFetch(`${API_BASE_URL}/api/tenant/menu/${selectedMenu}/categories`);
         if (response.ok) {
           const cats = await response.json();
           // Fetch item count for each category
@@ -131,7 +131,7 @@ export default function CategoriesPage() {
     if (!selectedMenu) return;
     setLoading(true);
     try {
-      const response = await authFetch(`${API_BASE_URL}/menus/${selectedMenu}/categories`);
+      const response = await authFetch(`${API_BASE_URL}/api/tenant/menu/${selectedMenu}/categories`);
       if (response.ok) {
         const cats = await response.json();
         const catsWithCount = await Promise.all(
