@@ -38,6 +38,7 @@ import bcrypt from 'bcrypt';
 import dashboardRoutes from './routes/dashboardRoutes';
 import platformAdminRoutes from './routes/platformAdmin.routes';
 import tenantRoutes from './routes/tenant.routes';
+import publicRoutes from './routes/public.routes';
 
 const app = express();
 
@@ -83,7 +84,10 @@ app.use(helmet({
 
 // Update CORS configuration
 app.use(cors({
-  origin: ['http://localhost:3001', 'http://127.0.0.1:3001', 'http://172.28.16.1:3001'],
+  origin: [
+    'http://localhost:3001', 'http://127.0.0.1:3001', 'http://172.28.16.1:3001', // Admin
+    'http://localhost:3002', 'http://127.0.0.1:3002' // Mobile PWA
+  ],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Tenant-Id']
@@ -175,6 +179,9 @@ app.use('/api/platform-admin', platformAdminRoutes);
 
 // Tenant routes (tenant-scoped data)
 app.use('/api/tenant', tenantRoutes);
+
+// Public routes (no auth required - for PWA)
+app.use('/api/public', publicRoutes);
 
 // Find tenants where user has an account (for multi-tenant login)
 app.post('/api/auth/find-tenants', async (req, res) => {
