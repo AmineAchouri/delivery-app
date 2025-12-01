@@ -14,18 +14,14 @@ export const API_ENDPOINTS = {
     POPULAR_ITEMS: `${API_BASE_URL}/dashboard/popular-items`,
   },
   ORDERS: {
-    LIST: `${API_BASE_URL.replace('/api', '')}/orders`,
-    DETAIL: (id: string | number) => `${API_BASE_URL.replace('/api', '')}/orders/${id}`,
-    UPDATE_STATUS: (id: string | number) => `${API_BASE_URL.replace('/api', '')}/orders/${id}/status`,
+    LIST: `${API_BASE_URL}/orders`,
+    DETAIL: (id: string | number) => `${API_BASE_URL}/orders/${id}`,
+    UPDATE_STATUS: (id: string | number) => `${API_BASE_URL}/orders/${id}/status`,
   },
   MENUS: {
-    LIST: `${API_BASE_URL.replace('/api', '')}/menus`,
-    CATEGORIES_FOR_MENU: (menuId: string | number) =>
-      `${API_BASE_URL.replace('/api', '')}/menus/${menuId}/categories`,
-    ITEMS_FOR_CATEGORY: (categoryId: string | number) =>
-      `${API_BASE_URL.replace('/api', '')}/categories/${categoryId}/items`,
-    ITEM_DETAIL: (itemId: string | number) =>
-      `${API_BASE_URL.replace('/api', '')}/items/${itemId}`,
+    LIST: `${API_BASE_URL}/menu`,
+    // Note: Backend only provides /menu endpoint that returns full menu tree
+    // No separate endpoints for categories or items - they're nested in the menu response
   },
   CUSTOMERS: {
     LIST: `${API_BASE_URL}/customers`,
