@@ -11,6 +11,9 @@ on:
         options:
           - test
           - prod
+      image_tag:
+        description: 'Optional override image tag'
+        required: false
       ecs_cluster:
         description: 'ECS Cluster name'
         required: true
@@ -19,118 +22,334 @@ on:
         description: 'ECS Service name'
         required: true
         default: 'delivery-customer-pwa'
-      backend_api_url:
-        description: 'Backend API URL (leave empty for default)'
+      target_group_arn:
+        description: 'Target group ARN for load balancer (optional)'
         required: false
-        default: ''
+      vpc_id:
+        description: 'VPC ID (optional, will auto-detect default VPC if not provided)'
+        required: false
+      backend_api_url:
+        description: 'Backend API URL (e.g., https://api.example.com)'
+        required: false
 
 jobs:
-  deploy:
+  build-image:
     runs-on: ubuntu-latest
-    env:
-      AWS_REGION: us-east-1
-      ECR_REPOSITORY: delivery-mobile-pwa
-      
+    outputs:
+      image-uri: ${{ steps.out.outputs.image }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@v3
+      - uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v1
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
-      - name: Set backend URL
-        id: set-backend-url
+          aws-region: us-east-1
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Ensure ECR repo
         run: |
-          if [ -z "${{ github.event.inputs.backend_api_url }}" ]; then
-            echo "BACKEND_URL=https://de-1776d05c524b49cba2db0d34a69e6775.ecs.us-east-1.on.aws" >> $GITHUB_OUTPUT
+          echo "Checking if ECR repository exists..."
+          if aws ecr describe-repositories --repository-names delivery-mobile-pwa >/dev/null 2>&1; then
+            echo "✅ ECR repository 'delivery-mobile-pwa' already exists"
           else
-            echo "BACKEND_URL=${{ github.event.inputs.backend_api_url }}" >> $GITHUB_OUTPUT
+            echo "Creating ECR repository 'delivery-mobile-pwa'..."
+            aws ecr create-repository \
+              --repository-name delivery-mobile-pwa \
+              --image-scanning-configuration scanOnPush=true \
+              --encryption-configuration encryptionType=KMS || {
+              echo "❌ Failed to create repository. Please ensure you have ECR permissions or create it manually:"
+              echo "aws ecr create-repository --repository-name delivery-mobile-pwa"
+              exit 1
+            }
+            echo "✅ ECR repository created successfully"
           fi
-
-      - name: Build and push Docker image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          
+          # Verify repository exists
+          echo "Verifying repository..."
+          aws ecr describe-repositories --repository-names delivery-mobile-pwa
+          echo "✅ Repository verified"
+      - name: Build & push image
+        id: out
         run: |
-          cd mobile-pwa
+          REPO=delivery-mobile-pwa
+          REGISTRY=${{ steps.ecr.outputs.registry }}
+          TAG_INPUT='${{ github.event.inputs.image_tag }}'
+          if [ -z "$TAG_INPUT" ]; then
+            TAG_INPUT="$(date +%Y%m%d%H%M%S)-${{ github.event.inputs.env }}"
+          fi
+          IMAGE="$REGISTRY/$REPO:$TAG_INPUT"
+          
+          # Set backend URL
+          BACKEND_URL="${{ github.event.inputs.backend_api_url }}"
+          if [ -z "$BACKEND_URL" ]; then
+            BACKEND_URL="https://de-1776d05c524b49cba2db0d34a69e6775.ecs.us-east-1.on.aws"
+          fi
+          
+          # Build Docker image
           docker build \
-            --build-arg BACKEND_API_URL=${{ steps.set-backend-url.outputs.BACKEND_URL }} \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
-            -f Dockerfile \
-            .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-          echo "IMAGE_URI=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
-
-      - name: Render ECS task definition
-        id: render-task-def
-        run: |
-          sed -e "s|\${IMAGE_URI}|${{ env.IMAGE_URI }}|g" \
-              -e "s|\${ECS_EXEC_ROLE_ARN}|${{ secrets.ECS_EXEC_ROLE_ARN }}|g" \
-              -e "s|\${ECS_TASK_ROLE_ARN}|${{ secrets.ECS_TASK_ROLE_ARN }}|g" \
-              -e "s|\${BACKEND_API_URL}|${{ steps.set-backend-url.outputs.BACKEND_URL }}|g" \
-              -e "s|\${ECS_LOG_GROUP}|${{ secrets.ECS_LOG_GROUP }}|g" \
-              infra/mobile-pwa-taskdef.template.json > mobile-pwa-taskdef.json
-          cat mobile-pwa-taskdef.json
-
-      - name: Deploy to ECS
-        run: |
-          # Register new task definition
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json file://mobile-pwa-taskdef.json \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
+            --build-arg BACKEND_API_URL="$BACKEND_URL" \
+            -f mobile-pwa/Dockerfile \
+            -t "$IMAGE" \
+            ./mobile-pwa
           
-          echo "Registered task definition: $TASK_DEF_ARN"
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+  
+  deploy-ecs:
+    runs-on: ubuntu-latest
+    needs: build-image
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      - name: Render task definition
+        run: |
+          IMAGE_URI='${{ needs.build-image.outputs.image-uri }}'
+          LOG_GROUP="${{ secrets.ECS_LOG_GROUP }}"
+          BACKEND_API_URL="${{ github.event.inputs.backend_api_url }}"
           
-          # Update ECS service
+          # Use default log group if not provided
+          if [ -z "$LOG_GROUP" ]; then
+            LOG_GROUP="/aws/ecs/delivery-mobile-pwa-${{ github.event.inputs.env }}"
+          fi
+          
+          # Use default backend API URL if not provided
+          if [ -z "$BACKEND_API_URL" ]; then
+            BACKEND_API_URL="https://de-1776d05c524b49cba2db0d34a69e6775.ecs.us-east-1.on.aws"
+          fi
+          
+          sed -e "s|\${IMAGE_URI}|$IMAGE_URI|g" \
+              -e "s|\${AWS_REGION}|us-east-1|g" \
+              -e "s|\${EXEC_ROLE_ARN}|${{ secrets.ECS_EXEC_ROLE_ARN }}|g" \
+              -e "s|\${TASK_ROLE_ARN}|${{ secrets.ECS_TASK_ROLE_ARN }}|g" \
+              -e "s|\${LOG_GROUP}|$LOG_GROUP|g" \
+              -e "s|\${BACKEND_API_URL}|$BACKEND_API_URL|g" \
+              -e "s|\${TASKDEF_FAMILY}|delivery-mobile-pwa-${{ github.event.inputs.env }}|g" \
+              infra/mobile-pwa-taskdef.template.json > taskdef.json
+          cat taskdef.json
+      
+      - name: Check for task definition changes
+        id: check_taskdef
+        run: |
+          TASKDEF_FAMILY="delivery-mobile-pwa-${{ github.event.inputs.env }}"
+          
+          # Get the latest active task definition
+          LATEST_TASKDEF=$(aws ecs describe-task-definition \
+            --task-definition $TASKDEF_FAMILY \
+            --query 'taskDefinition' \
+            --output json 2>/dev/null || echo "{}")
+          
+          if [ "$LATEST_TASKDEF" = "{}" ]; then
+            echo "No existing task definition found"
+            echo "needs_registration=true" >> "$GITHUB_OUTPUT"
+            echo "existing_revision=0" >> "$GITHUB_OUTPUT"
+          else
+            # Extract relevant fields for comparison (excluding metadata)
+            EXISTING_DEF=$(echo "$LATEST_TASKDEF" | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            NEW_DEF=$(cat taskdef.json | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)')
+            
+            # Compare the definitions
+            if [ "$EXISTING_DEF" = "$NEW_DEF" ]; then
+              EXISTING_REV=$(echo "$LATEST_TASKDEF" | jq -r '.revision')
+              echo "Task definition unchanged, reusing revision $EXISTING_REV"
+              echo "needs_registration=false" >> "$GITHUB_OUTPUT"
+              echo "existing_revision=$EXISTING_REV" >> "$GITHUB_OUTPUT"
+            else
+              echo "Task definition has changes, will register new revision"
+              echo "needs_registration=true" >> "$GITHUB_OUTPUT"
+              EXISTING_REV=$(echo "$LATEST_TASKDEF" | jq -r '.revision')
+              echo "existing_revision=$EXISTING_REV" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+      
+      - name: Register new task definition
+        id: reg
+        if: steps.check_taskdef.outputs.needs_registration == 'true'
+        run: |
+          REV=$(aws ecs register-task-definition --cli-input-json file://taskdef.json --query "taskDefinition.revision" --output text)
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
+          echo "Registered new task definition revision: $REV"
+      
+      - name: Use existing task definition
+        id: use_existing
+        if: steps.check_taskdef.outputs.needs_registration == 'false'
+        run: |
+          REV="${{ steps.check_taskdef.outputs.existing_revision }}"
+          echo "rev=$REV" >> "$GITHUB_OUTPUT"
+          echo "Using existing task definition revision: $REV"
+      
+      - name: Set final revision
+        id: final_rev
+        run: |
+          if [ "${{ steps.check_taskdef.outputs.needs_registration }}" = "true" ]; then
+            REV="${{ steps.reg.outputs.rev }}"
+          else
+            REV="${{ steps.use_existing.outputs.rev }}"
+          fi
+          echo "revision=$REV" >> "$GITHUB_OUTPUT"
+          echo "Final revision to deploy: $REV"
+      
+      - name: Check if service exists
+        id: check_service
+        run: |
+          if aws ecs describe-services \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}' \
+            --query 'services[0].status' --output text 2>/dev/null | grep -q ACTIVE; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Service exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Service does not exist - will auto-discover AWS resources"
+          fi
+      
+      - name: Auto-discover AWS resources for new service
+        id: discover_resources
+        if: steps.check_service.outputs.exists == 'false'
+        run: |
+          echo "=== Auto-discovering AWS Resources ==="
+          
+          # Determine VPC ID
+          if [ -n "${{ github.event.inputs.vpc_id }}" ]; then
+            VPC_ID="${{ github.event.inputs.vpc_id }}"
+            echo "Using provided VPC: $VPC_ID"
+          else
+            echo "No VPC provided, using default VPC..."
+            VPC_ID=$(aws ec2 describe-vpcs --filters "Name=isDefault,Values=true" --query 'Vpcs[0].VpcId' --output text)
+            if [ "$VPC_ID" = "None" ] || [ -z "$VPC_ID" ]; then
+              echo "No default VPC found, using first available VPC..."
+              VPC_ID=$(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text)
+            fi
+            echo "Auto-detected VPC: $VPC_ID"
+          fi
+          
+          # Get subnets from VPC
+          echo "Finding subnets in VPC $VPC_ID..."
+          SUBNETS=$(aws ec2 describe-subnets \
+            --filters "Name=vpc-id,Values=$VPC_ID" \
+            --query 'Subnets[*].SubnetId' \
+            --output text | tr '\t' ',')
+          
+          if [ -z "$SUBNETS" ]; then
+            echo "ERROR: No subnets found in VPC $VPC_ID"
+            exit 1
+          fi
+          
+          echo "Found subnets: $SUBNETS"
+          echo "subnets=$SUBNETS" >> "$GITHUB_OUTPUT"
+          
+          # Check or create security group for mobile PWA
+          SG_NAME="delivery-mobile-pwa-${{ github.event.inputs.env }}-sg"
+          echo "Looking for security group: $SG_NAME"
+          
+          SG_ID=$(aws ec2 describe-security-groups \
+            --filters "Name=group-name,Values=$SG_NAME" "Name=vpc-id,Values=$VPC_ID" \
+            --query 'SecurityGroups[0].GroupId' \
+            --output text 2>/dev/null)
+          
+          if [ "$SG_ID" = "None" ] || [ -z "$SG_ID" ]; then
+            echo "Security group not found, creating new one..."
+            SG_ID=$(aws ec2 create-security-group \
+              --group-name "$SG_NAME" \
+              --description "Security group for delivery mobile PWA (${{ github.event.inputs.env }})" \
+              --vpc-id "$VPC_ID" \
+              --query 'GroupId' \
+              --output text)
+            
+            echo "Created security group: $SG_ID"
+            
+            # Allow inbound traffic on port 3002
+            echo "Adding inbound rule for port 3002..."
+            aws ec2 authorize-security-group-ingress \
+              --group-id "$SG_ID" \
+              --protocol tcp \
+              --port 3002 \
+              --cidr 0.0.0.0/0
+            
+            echo "Security group configured"
+          else
+            echo "Found existing security group: $SG_ID"
+          fi
+          
+          echo "security_group=$SG_ID" >> "$GITHUB_OUTPUT"
+          echo "vpc_id=$VPC_ID" >> "$GITHUB_OUTPUT"
+          
+          echo "=== Resource Discovery Complete ==="
+          echo "VPC: $VPC_ID"
+          echo "Subnets: $SUBNETS"
+          echo "Security Group: $SG_ID"
+      
+      - name: Create service if not exists
+        if: steps.check_service.outputs.exists == 'false'
+        run: |
+          TASKDEF_FAMILY="delivery-mobile-pwa-${{ github.event.inputs.env }}"
+          REV="${{ steps.final_rev.outputs.revision }}"
+          
+          # Use auto-discovered resources
+          SUBNETS="${{ steps.discover_resources.outputs.subnets }}"
+          SECURITY_GROUP="${{ steps.discover_resources.outputs.security_group }}"
+          
+          echo "Creating ECS service with:"
+          echo "  Task Definition: $TASKDEF_FAMILY:$REV"
+          echo "  Subnets: $SUBNETS"
+          echo "  Security Group: $SECURITY_GROUP"
+          
+          # Base create-service command with rolling update deployment
+          CREATE_CMD="aws ecs create-service \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --service-name '${{ github.event.inputs.ecs_service }}' \
+            --task-definition $TASKDEF_FAMILY:$REV \
+            --desired-count 1 \
+            --launch-type FARGATE \
+            --deployment-configuration 'deploymentCircuitBreaker={enable=true,rollback=true},maximumPercent=200,minimumHealthyPercent=100' \
+            --network-configuration 'awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUP],assignPublicIp=ENABLED}'"
+          
+          # Add load balancer if target group is provided
+          if [ -n "${{ github.event.inputs.target_group_arn }}" ]; then
+            echo "  Load Balancer Target Group: ${{ github.event.inputs.target_group_arn }}"
+            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=mobile-pwa,containerPort=3002"
+          fi
+          
+          echo "Creating service..."
+          eval $CREATE_CMD
+          echo "Service created successfully"
+      
+      - name: Update existing service
+        if: steps.check_service.outputs.exists == 'true'
+        run: |
+          TASKDEF_FAMILY="delivery-mobile-pwa-${{ github.event.inputs.env }}"
+          REV="${{ steps.final_rev.outputs.revision }}"
+          
+          echo "Updating existing service with rolling update..."
           aws ecs update-service \
-            --cluster ${{ github.event.inputs.ecs_cluster }} \
-            --service ${{ github.event.inputs.ecs_service }} \
-            --task-definition $TASK_DEF_ARN \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --service '${{ github.event.inputs.ecs_service }}' \
+            --task-definition $TASKDEF_FAMILY:$REV \
             --force-new-deployment
           
-          echo "✅ Deployment initiated for ${{ github.event.inputs.ecs_service }}"
-
-      - name: Wait for deployment
+          echo "✅ Service updated successfully"
+      
+      - name: Wait for service stability
         run: |
-          echo "Waiting for service to stabilize..."
+          echo "Waiting for service to become stable..."
           aws ecs wait services-stable \
-            --cluster ${{ github.event.inputs.ecs_cluster }} \
-            --services ${{ github.event.inputs.ecs_service }}
-          echo "✅ Service is stable!"
-
-      - name: Get service URL
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}'
+          echo "Service is stable"
+      
+      - name: Display service status
         run: |
-          TASK_ARN=$(aws ecs list-tasks \
-            --cluster ${{ github.event.inputs.ecs_cluster }} \
-            --service-name ${{ github.event.inputs.ecs_service }} \
-            --query 'taskArns[0]' \
-            --output text)
-          
-          if [ "$TASK_ARN" != "None" ]; then
-            ENI_ID=$(aws ecs describe-tasks \
-              --cluster ${{ github.event.inputs.ecs_cluster }} \
-              --tasks $TASK_ARN \
-              --query 'tasks[0].attachments[0].details[?name==`networkInterfaceId`].value' \
-              --output text)
-            
-            PUBLIC_IP=$(aws ec2 describe-network-interfaces \
-              --network-interface-ids $ENI_ID \
-              --query 'NetworkInterfaces[0].Association.PublicIp' \
-              --output text)
-            
-            echo "🌐 Service URL: http://$PUBLIC_IP:3002"
-          fi
+          echo "=== Service Status ==="
+          aws ecs describe-services \
+            --cluster '${{ github.event.inputs.ecs_cluster }}' \
+            --services '${{ github.event.inputs.ecs_service }}' \
+            --query 'services[0].{Status:status,Running:runningCount,Desired:desiredCount,TaskDefinition:taskDefinition}' \
+            --output table
