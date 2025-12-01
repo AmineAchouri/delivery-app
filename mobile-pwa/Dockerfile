@@ -30,7 +30,7 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
-ENV PORT=3002
+ENV PORT=3000
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
@@ -48,11 +48,11 @@ RUN chown -R nextjs:nodejs /app
 USER nextjs
 
 # Expose port
-EXPOSE 3002
+EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3002/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start application
 CMD ["node", "server.js"]

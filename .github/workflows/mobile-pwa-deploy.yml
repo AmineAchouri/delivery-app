@@ -280,12 +280,12 @@ jobs:
             
             echo "Created security group: $SG_ID"
             
-            # Allow inbound traffic on port 3002
-            echo "Adding inbound rule for port 3002..."
+            # Allow inbound traffic on port 3000
+            echo "Adding inbound rule for port 3000..."
             aws ec2 authorize-security-group-ingress \
               --group-id "$SG_ID" \
               --protocol tcp \
-              --port 3002 \
+              --port 3000 \
               --cidr 0.0.0.0/0
             
             echo "Security group configured"
@@ -329,7 +329,7 @@ jobs:
           # Add load balancer if target group is provided
           if [ -n "${{ github.event.inputs.target_group_arn }}" ]; then
             echo "  Load Balancer Target Group: ${{ github.event.inputs.target_group_arn }}"
-            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=mobile-pwa,containerPort=3002"
+            CREATE_CMD="$CREATE_CMD --load-balancers targetGroupArn=${{ github.event.inputs.target_group_arn }},containerName=Main,containerPort=3000"
           fi
           
           echo "Creating service..."
