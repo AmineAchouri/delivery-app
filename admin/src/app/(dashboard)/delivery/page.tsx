@@ -29,7 +29,7 @@ interface Order {
   items: { name: string; quantity: number }[];
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = '/api';
 
 const STATUS_FLOW = ['pending', 'confirmed', 'preparing', 'ready', 'picked_up', 'delivered'];
 

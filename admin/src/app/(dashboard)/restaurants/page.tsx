@@ -51,7 +51,7 @@ interface Tenant {
   };
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = '/api';
 
 export default function RestaurantsPage() {
   const { isSuperAdmin } = useAuth();

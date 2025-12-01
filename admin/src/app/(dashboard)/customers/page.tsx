@@ -39,7 +39,7 @@ import { useAuth, useAuthenticatedFetch } from '@/contexts/AuthContext';
 import { useCurrency } from '@/contexts/CurrencyContext';
 import { FeatureGuard } from '@/components/FeatureGuard';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = '/api';
 
 interface Customer {
   id: string;

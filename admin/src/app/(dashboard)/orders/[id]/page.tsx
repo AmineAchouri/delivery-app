@@ -13,7 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_BASE_URL = '/api';
 
 interface OrderItem {
   id?: string | number;
