@@ -40,7 +40,7 @@ interface CartItem {
   quantity: number;
 }
 
-const API_BASE_URL = '';
+const API_BASE_URL = '/api';
 
 export default function OrderPage() {
   return (
@@ -70,8 +70,8 @@ function OrderPageContent() {
       if (!selectedTenant) return;
       
       try {
-        // Get menus
-        const menusRes = await authFetch(`${API_BASE_URL}/menus`);
+        // Get menus - categories and items are included in response
+        const menusRes = await authFetch(`${API_BASE_URL}/tenant/menu`);
         if (!menusRes.ok) throw new Error('Failed to fetch menus');
         const menus = await menusRes.json();
         
@@ -80,19 +80,18 @@ function OrderPageContent() {
           return;
         }
 
-        // Get categories for first menu
-        const categoriesRes = await authFetch(`${API_BASE_URL}/menus/${menus[0].menu_id}/categories`);
-        if (!categoriesRes.ok) throw new Error('Failed to fetch categories');
-        const cats = await categoriesRes.json();
-
-        // Get items for each category
-        const categoriesWithItems = await Promise.all(
-          cats.map(async (cat: any) => {
-            const itemsRes = await authFetch(`${API_BASE_URL}/categories/${cat.category_id}/items`);
-            const items = itemsRes.ok ? await itemsRes.json() : [];
-            return { ...cat, items };
-          })
-        );
+        // Categories and items are already in the menu response
+        const categoriesWithItems = (menus[0].categories || []).map((cat: any) => ({
+          category_id: cat.id,
+          name: cat.name,
+          items: (cat.items || []).map((item: any) => ({
+            item_id: item.id,
+            name: item.name,
+            description: item.description,
+            price: item.price,
+            is_available: item.isAvailable
+          }))
+        }));
 
         setCategories(categoriesWithItems);
         if (categoriesWithItems.length > 0) {
@@ -147,7 +146,7 @@ function OrderPageContent() {
     }
 
     try {
-      const response = await authFetch(`${API_BASE_URL}/api/tenant/orders`, {
+      const response = await authFetch(`${API_BASE_URL}/tenant/orders`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

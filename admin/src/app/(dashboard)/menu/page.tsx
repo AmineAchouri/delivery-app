@@ -16,7 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-const API_BASE_URL = '';
+const API_BASE_URL = '/api';
 
 interface Category {
   category_id: string;
@@ -25,7 +25,8 @@ interface Category {
 }
 
 interface Menu {
-  menu_id: string;
+  id: string;
+  menu_id?: string; // legacy support
   name: string;
   description?: string;
 }
@@ -57,13 +58,13 @@ function MenuPageContent() {
     const loadData = async () => {
       setLoading(true);
       try {
-        const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
+        const menusRes = await authFetch(`${API_BASE_URL}/tenant/menu`);
         if (menusRes.ok) {
           let menusData = await menusRes.json();
           
           // If no menus exist, create a default one
           if (menusData.length === 0) {
-            const createRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`, {
+            const createRes = await authFetch(`${API_BASE_URL}/tenant/menu`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: 'Main Menu' })
@@ -77,24 +78,21 @@ function MenuPageContent() {
           
           setMenus(menusData);
 
-          if (menusData.length > 0) {
-            const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menusData[0].menu_id}/categories`);
-            if (catsRes.ok) {
-              const catsData = await catsRes.json();
-              
-              // Get item counts
-              let total = 0;
-              const catsWithCount = await Promise.all(
-                catsData.map(async (cat: Category) => {
-                  const itemsRes = await authFetch(`${API_BASE_URL}/categories/${cat.category_id}/items`);
-                  const items = itemsRes.ok ? await itemsRes.json() : [];
-                  total += items.length;
-                  return { ...cat, item_count: items.length };
-                })
-              );
-              setCategories(catsWithCount);
-              setTotalItems(total);
-            }
+          if (menusData.length > 0 && menusData[0].categories) {
+            // Categories and items are already included in menu response
+            const cats = menusData[0].categories;
+            let total = 0;
+            const catsWithCount = cats.map((cat: any) => {
+              const itemCount = cat.items?.length || 0;
+              total += itemCount;
+              return { 
+                category_id: cat.id, 
+                name: cat.name, 
+                item_count: itemCount 
+              };
+            });
+            setCategories(catsWithCount);
+            setTotalItems(total);
           }
         }
       } catch (error) {
@@ -111,27 +109,26 @@ function MenuPageContent() {
   const refreshData = async () => {
     setLoading(true);
     try {
-      const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
+      const menusRes = await authFetch(`${API_BASE_URL}/tenant/menu`);
       if (menusRes.ok) {
         const menusData = await menusRes.json();
         setMenus(menusData);
 
-        if (menusData.length > 0) {
-          const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menusData[0].menu_id}/categories`);
-          if (catsRes.ok) {
-            const catsData = await catsRes.json();
-            let total = 0;
-            const catsWithCount = await Promise.all(
-              catsData.map(async (cat: Category) => {
-                const itemsRes = await authFetch(`${API_BASE_URL}/categories/${cat.category_id}/items`);
-                const items = itemsRes.ok ? await itemsRes.json() : [];
-                total += items.length;
-                return { ...cat, item_count: items.length };
-              })
-            );
-            setCategories(catsWithCount);
-            setTotalItems(total);
-          }
+        if (menusData.length > 0 && menusData[0].categories) {
+          // Categories and items are already included in menu response
+          const cats = menusData[0].categories;
+          let total = 0;
+          const catsWithCount = cats.map((cat: any) => {
+            const itemCount = cat.items?.length || 0;
+            total += itemCount;
+            return { 
+              category_id: cat.id, 
+              name: cat.name, 
+              item_count: itemCount 
+            };
+          });
+          setCategories(catsWithCount);
+          setTotalItems(total);
         }
       }
     } catch (error) {

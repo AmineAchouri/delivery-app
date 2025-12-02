@@ -839,4 +839,272 @@ router.post('/menu', async (req: Request, res: Response) => {
   }
 });
 
+// POST /tenant/categories - Create a new category
+router.post('/categories', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { name, description, menu_id, sort_order } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: 'Category name is required' });
+    }
+
+    // If no menu_id provided, get or create default menu
+    let menuId = menu_id;
+    if (!menuId) {
+      let menu = await prisma.menu.findFirst({
+        where: { tenant_id: tenantId }
+      });
+      if (!menu) {
+        menu = await prisma.menu.create({
+          data: {
+            tenant_id: tenantId,
+            name: 'Main Menu',
+            description: 'Default restaurant menu',
+            is_active: true
+          }
+        });
+      }
+      menuId = menu.menu_id;
+    }
+
+    // Get max order_index for this menu
+    const maxOrder = await prisma.menuCategory.aggregate({
+      where: { menu_id: menuId },
+      _max: { order_index: true }
+    });
+    const orderIndex = sort_order ?? ((maxOrder._max.order_index ?? -1) + 1);
+
+    const category = await prisma.menuCategory.create({
+      data: {
+        tenant_id: tenantId,
+        menu_id: menuId,
+        name,
+        order_index: orderIndex
+      }
+    });
+
+    res.status(201).json({
+      category_id: category.category_id,
+      name: category.name,
+      order_index: category.order_index,
+      menu_id: category.menu_id
+    });
+  } catch (error) {
+    console.error('Create category error:', error);
+    res.status(500).json({ error: 'Failed to create category' });
+  }
+});
+
+// PUT /tenant/categories/:id - Update a category
+router.put('/categories/:id', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { id } = req.params;
+    const { name, description, sort_order } = req.body;
+
+    // Verify category belongs to tenant
+    const existing = await prisma.menuCategory.findFirst({
+      where: { 
+        category_id: id,
+        menu: { tenant_id: tenantId }
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    const category = await prisma.menuCategory.update({
+      where: { category_id: id },
+      data: {
+        name: name ?? existing.name,
+        order_index: sort_order ?? existing.order_index
+      }
+    });
+
+    res.json({
+      category_id: category.category_id,
+      name: category.name,
+      order_index: category.order_index
+    });
+  } catch (error) {
+    console.error('Update category error:', error);
+    res.status(500).json({ error: 'Failed to update category' });
+  }
+});
+
+// DELETE /tenant/categories/:id - Delete a category
+router.delete('/categories/:id', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { id } = req.params;
+
+    // Verify category belongs to tenant
+    const existing = await prisma.menuCategory.findFirst({
+      where: { 
+        category_id: id,
+        menu: { tenant_id: tenantId }
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    await prisma.menuCategory.delete({
+      where: { category_id: id }
+    });
+
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    res.status(500).json({ error: 'Failed to delete category' });
+  }
+});
+
+// POST /tenant/items - Create a new menu item
+router.post('/items', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { name, description, price, category_id, is_available, image_url } = req.body;
+
+    if (!name || !category_id) {
+      return res.status(400).json({ error: 'Name and category_id are required' });
+    }
+
+    // Verify category belongs to tenant
+    const category = await prisma.menuCategory.findFirst({
+      where: { 
+        category_id,
+        menu: { tenant_id: tenantId }
+      }
+    });
+
+    if (!category) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    const item = await prisma.menuItem.create({
+      data: {
+        tenant_id: tenantId,
+        category_id,
+        name,
+        description: description || null,
+        price: price || 0,
+        is_available: is_available ?? true
+      }
+    });
+
+    res.status(201).json({
+      item_id: item.item_id,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      is_available: item.is_available,
+      category_id: item.category_id
+    });
+  } catch (error) {
+    console.error('Create item error:', error);
+    res.status(500).json({ error: 'Failed to create item' });
+  }
+});
+
+// PUT /tenant/items/:id - Update a menu item
+router.put('/items/:id', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { id } = req.params;
+    const { name, description, price, is_available, image_url, category_id } = req.body;
+
+    // Verify item belongs to tenant
+    const existing = await prisma.menuItem.findFirst({
+      where: { 
+        item_id: id,
+        tenant_id: tenantId
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const item = await prisma.menuItem.update({
+      where: { item_id: id },
+      data: {
+        name: name ?? existing.name,
+        description: description ?? existing.description,
+        price: price ?? existing.price,
+        is_available: is_available ?? existing.is_available,
+        category_id: category_id ?? existing.category_id
+      }
+    });
+
+    res.json({
+      item_id: item.item_id,
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      is_available: item.is_available,
+      category_id: item.category_id
+    });
+  } catch (error) {
+    console.error('Update item error:', error);
+    res.status(500).json({ error: 'Failed to update item' });
+  }
+});
+
+// DELETE /tenant/items/:id - Delete a menu item
+router.delete('/items/:id', async (req: Request, res: Response) => {
+  try {
+    const tenantId = (req as any).tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ error: 'Tenant ID required' });
+    }
+
+    const { id } = req.params;
+
+    // Verify item belongs to tenant
+    const existing = await prisma.menuItem.findFirst({
+      where: { 
+        item_id: id,
+        tenant_id: tenantId
+      }
+    });
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    await prisma.menuItem.delete({
+      where: { item_id: id }
+    });
+
+    res.json({ message: 'Item deleted successfully' });
+  } catch (error) {
+    console.error('Delete item error:', error);
+    res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
 export default router;

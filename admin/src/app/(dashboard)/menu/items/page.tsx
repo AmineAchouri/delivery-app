@@ -38,7 +38,7 @@ interface Category {
   name: string;
 }
 
-const API_BASE_URL = '';
+const API_BASE_URL = '/api';
 
 export default function MenuItemsPage() {
   const { isTenantOwner, isPlatformAdmin, selectedTenant } = useAuth();
@@ -74,14 +74,14 @@ export default function MenuItemsPage() {
     
     const fetchData = async () => {
       try {
-        // Fetch menus first
-        const menusRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`);
+        // Fetch menus - categories and items are included
+        const menusRes = await authFetch(`${API_BASE_URL}/tenant/menu`);
         if (!menusRes.ok) throw new Error('Failed to fetch menus');
         let menus = await menusRes.json();
         
         // If no menus exist, create a default one
         if (menus.length === 0) {
-          const createRes = await authFetch(`${API_BASE_URL}/api/tenant/menu`, {
+          const createRes = await authFetch(`${API_BASE_URL}/tenant/menu`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: 'Main Menu' })
@@ -96,10 +96,12 @@ export default function MenuItemsPage() {
           }
         }
 
-        // Fetch categories
-        const catsRes = await authFetch(`${API_BASE_URL}/api/tenant/menu/${menus[0].menu_id}/categories`);
-        if (catsRes.ok) {
-          const cats = await catsRes.json();
+        // Categories are already in the menu response
+        if (menus[0].categories) {
+          const cats = menus[0].categories.map((cat: any) => ({
+            category_id: cat.id,
+            name: cat.name
+          }));
           setCategories(cats);
           
           // If no category selected, use first one
@@ -107,10 +109,18 @@ export default function MenuItemsPage() {
           if (targetCategoryId) {
             setFormData(prev => ({ ...prev, category_id: targetCategoryId }));
             
-            // Fetch items for category
-            const itemsRes = await authFetch(`${API_BASE_URL}/categories/${targetCategoryId}/items`);
-            if (itemsRes.ok) {
-              setItems(await itemsRes.json());
+            // Get items from the category in menu response
+            const targetCat = menus[0].categories.find((c: any) => c.id === targetCategoryId);
+            if (targetCat && targetCat.items) {
+              const itemsList = targetCat.items.map((item: any) => ({
+                item_id: item.id,
+                name: item.name,
+                description: item.description,
+                price: item.price,
+                is_available: item.isAvailable,
+                category_id: targetCategoryId
+              }));
+              setItems(itemsList);
             }
           }
         }
@@ -140,13 +150,13 @@ export default function MenuItemsPage() {
     try {
       let response;
       if (editingItem) {
-        response = await authFetch(`${API_BASE_URL}/admin/items/${editingItem.item_id}`, {
-          method: 'PATCH',
+        response = await authFetch(`${API_BASE_URL}/tenant/items/${editingItem.item_id}`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        response = await authFetch(`${API_BASE_URL}/admin/items`, {
+        response = await authFetch(`${API_BASE_URL}/tenant/items`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -175,7 +185,7 @@ export default function MenuItemsPage() {
     if (!confirm('Are you sure you want to delete this item?')) return;
     
     try {
-      const response = await authFetch(`${API_BASE_URL}/admin/items/${itemId}`, {
+      const response = await authFetch(`${API_BASE_URL}/tenant/items/${itemId}`, {
         method: 'DELETE'
       });
       
@@ -189,8 +199,8 @@ export default function MenuItemsPage() {
 
   const toggleAvailability = async (item: MenuItem) => {
     try {
-      const response = await authFetch(`${API_BASE_URL}/admin/items/${item.item_id}`, {
-        method: 'PATCH',
+      const response = await authFetch(`${API_BASE_URL}/tenant/items/${item.item_id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_available: !item.is_available })
       });

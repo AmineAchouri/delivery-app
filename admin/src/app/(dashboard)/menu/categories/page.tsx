@@ -20,6 +20,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { API_ENDPOINTS } from '@/config/api';
 
+const API_BASE_URL = '/api';
+
 interface Category {
   category_id: string;
   name: string;
@@ -61,13 +63,13 @@ export default function CategoriesPage() {
     
     const fetchMenus = async () => {
       try {
-        const response = await authFetch(API_ENDPOINTS.MENUS.LIST);
+        const response = await authFetch(`${API_BASE_URL}/tenant/menu`);
         if (response.ok) {
           const data = await response.json();
           
           // If no menus exist, create a default one
           if (data.length === 0) {
-            const createRes = await authFetch(API_ENDPOINTS.MENUS.LIST, {
+            const createRes = await authFetch(`${API_BASE_URL}/tenant/menu`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ name: 'Main Menu' })
@@ -76,12 +78,30 @@ export default function CategoriesPage() {
             if (createRes.ok) {
               const newMenu = await createRes.json();
               setMenus([newMenu]);
-              setSelectedMenu(newMenu.menu_id);
+              setSelectedMenu(newMenu.id || newMenu.menu_id);
+              // Categories from the new menu
+              if (newMenu.categories) {
+                const catsWithCount = newMenu.categories.map((cat: any) => ({
+                  category_id: cat.id,
+                  name: cat.name,
+                  item_count: cat.items?.length || 0
+                }));
+                setCategories(catsWithCount);
+              }
             }
           } else {
             setMenus(data);
             if (!selectedMenu) {
-              setSelectedMenu(data[0].menu_id);
+              setSelectedMenu(data[0].id || data[0].menu_id);
+            }
+            // Categories are already in the menu response
+            if (data[0].categories) {
+              const catsWithCount = data[0].categories.map((cat: any) => ({
+                category_id: cat.id,
+                name: cat.name,
+                item_count: cat.items?.length || 0
+              }));
+              setCategories(catsWithCount);
             }
           }
         }
@@ -96,33 +116,19 @@ export default function CategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTenant?.tenant_id, isPlatformAdmin]);
 
+  // When menu changes, update categories from cached menu data
   useEffect(() => {
-    if (!selectedMenu) return;
+    if (!selectedMenu || menus.length === 0) return;
     
-    const fetchCategories = async () => {
-      setLoading(true);
-      try {
-        const response = await authFetch(API_ENDPOINTS.MENUS.CATEGORIES(selectedMenu));
-        if (response.ok) {
-          const cats = await response.json();
-          // Fetch item count for each category
-          const catsWithCount = await Promise.all(
-            cats.map(async (cat: Category) => {
-              const itemsRes = await authFetch(API_ENDPOINTS.MENUS.CATEGORY_ITEMS(cat.category_id));
-              const items = itemsRes.ok ? await itemsRes.json() : [];
-              return { ...cat, item_count: items.length };
-            })
-          );
-          setCategories(catsWithCount);
-        }
-      } catch (error) {
-        console.error('Failed to fetch categories:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchCategories();
+    const currentMenu = menus.find((m: any) => (m.id || m.menu_id) === selectedMenu);
+    if (currentMenu && currentMenu.categories) {
+      const catsWithCount = currentMenu.categories.map((cat: any) => ({
+        category_id: cat.id,
+        name: cat.name,
+        item_count: cat.items?.length || 0
+      }));
+      setCategories(catsWithCount);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMenu]);
 
@@ -130,17 +136,19 @@ export default function CategoriesPage() {
     if (!selectedMenu) return;
     setLoading(true);
     try {
-      const response = await authFetch(API_ENDPOINTS.MENUS.CATEGORIES(selectedMenu));
+      const response = await authFetch(`${API_BASE_URL}/tenant/menu`);
       if (response.ok) {
-        const cats = await response.json();
-        const catsWithCount = await Promise.all(
-          cats.map(async (cat: Category) => {
-            const itemsRes = await authFetch(API_ENDPOINTS.MENUS.CATEGORY_ITEMS(cat.category_id));
-            const items = itemsRes.ok ? await itemsRes.json() : [];
-            return { ...cat, item_count: items.length };
-          })
-        );
-        setCategories(catsWithCount);
+        const data = await response.json();
+        setMenus(data);
+        const currentMenu = data.find((m: any) => (m.id || m.menu_id) === selectedMenu);
+        if (currentMenu && currentMenu.categories) {
+          const catsWithCount = currentMenu.categories.map((cat: any) => ({
+            category_id: cat.id,
+            name: cat.name,
+            item_count: cat.items?.length || 0
+          }));
+          setCategories(catsWithCount);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch categories:', error);
@@ -162,13 +170,13 @@ export default function CategoriesPage() {
     try {
       let response;
       if (editingCategory) {
-        response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORY_DETAIL(editingCategory.category_id), {
-          method: 'PATCH',
+        response = await authFetch(`${API_BASE_URL}/tenant/categories/${editingCategory.category_id}`, {
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORIES, {
+        response = await authFetch(`${API_BASE_URL}/tenant/categories`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -199,7 +207,7 @@ export default function CategoriesPage() {
     if (!confirm('Are you sure you want to delete this category? All items in this category will also be deleted.')) return;
     
     try {
-      const response = await authFetch(API_ENDPOINTS.ADMIN.CATEGORY_DETAIL(categoryId), {
+      const response = await authFetch(`${API_BASE_URL}/tenant/categories/${categoryId}`, {
         method: 'DELETE'
       });
       
