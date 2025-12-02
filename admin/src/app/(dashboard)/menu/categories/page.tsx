@@ -31,9 +31,28 @@ interface Category {
   item_count?: number;
 }
 
-interface Menu {
-  menu_id: string;
+interface MenuItem {
+  id: string;
   name: string;
+  description?: string;
+  price: number;
+  isAvailable: boolean;
+}
+
+interface MenuCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  items: MenuItem[];
+}
+
+interface Menu {
+  id?: string;
+  menu_id?: string;
+  name: string;
+  description?: string;
+  isActive?: boolean;
+  categories?: MenuCategory[];
 }
 
 export default function CategoriesPage() {
@@ -81,9 +100,12 @@ export default function CategoriesPage() {
               setSelectedMenu(newMenu.id || newMenu.menu_id);
               // Categories from the new menu
               if (newMenu.categories) {
+                const menuId = newMenu.id || newMenu.menu_id;
                 const catsWithCount = newMenu.categories.map((cat: any) => ({
                   category_id: cat.id,
                   name: cat.name,
+                  sort_order: cat.sortOrder || 0,
+                  menu_id: menuId,
                   item_count: cat.items?.length || 0
                 }));
                 setCategories(catsWithCount);
@@ -96,9 +118,12 @@ export default function CategoriesPage() {
             }
             // Categories are already in the menu response
             if (data[0].categories) {
+              const menuId = data[0].id || data[0].menu_id;
               const catsWithCount = data[0].categories.map((cat: any) => ({
                 category_id: cat.id,
                 name: cat.name,
+                sort_order: cat.sortOrder || 0,
+                menu_id: menuId,
                 item_count: cat.items?.length || 0
               }));
               setCategories(catsWithCount);
@@ -125,6 +150,8 @@ export default function CategoriesPage() {
       const catsWithCount = currentMenu.categories.map((cat: any) => ({
         category_id: cat.id,
         name: cat.name,
+        sort_order: cat.sortOrder || 0,
+        menu_id: selectedMenu,
         item_count: cat.items?.length || 0
       }));
       setCategories(catsWithCount);
@@ -145,6 +172,8 @@ export default function CategoriesPage() {
           const catsWithCount = currentMenu.categories.map((cat: any) => ({
             category_id: cat.id,
             name: cat.name,
+            sort_order: cat.sortOrder || 0,
+            menu_id: selectedMenu,
             item_count: cat.items?.length || 0
           }));
           setCategories(catsWithCount);
@@ -304,7 +333,7 @@ export default function CategoriesPage() {
           className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
         >
           {menus.map(menu => (
-            <option key={menu.menu_id} value={menu.menu_id}>{menu.name}</option>
+            <option key={menu.id || menu.menu_id} value={menu.id || menu.menu_id}>{menu.name}</option>
           ))}
         </select>
         

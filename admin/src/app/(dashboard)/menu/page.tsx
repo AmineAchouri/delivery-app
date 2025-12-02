@@ -24,11 +24,28 @@ interface Category {
   item_count?: number;
 }
 
+interface MenuItem {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  isAvailable: boolean;
+}
+
+interface MenuCategory {
+  id: string;
+  name: string;
+  sortOrder: number;
+  items?: MenuItem[];
+}
+
 interface Menu {
   id: string;
   menu_id?: string; // legacy support
   name: string;
   description?: string;
+  isActive?: boolean;
+  categories?: MenuCategory[];
 }
 
 export default function MenuPage() {
