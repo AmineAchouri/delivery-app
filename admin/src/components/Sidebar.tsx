@@ -29,7 +29,9 @@ import {
   Clock,
   Star,
   DollarSign,
-  Percent
+  Percent,
+  Smartphone,
+  QrCode
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -169,6 +171,19 @@ export default function Sidebar() {
           name: 'Discounts', 
           href: '/marketing/discounts', 
           icon: <Percent className="h-3.5 w-3.5" /> 
+        },
+      ]
+    },
+    { 
+      name: 'Mobile App', 
+      href: '/mobile-apps', 
+      icon: <Smartphone className="h-4 w-4" />,
+      isNew: true,
+      subItems: [
+        { 
+          name: 'QR Code & Link', 
+          href: '/mobile-apps', 
+          icon: <QrCode className="h-3.5 w-3.5" /> 
         },
       ]
     },
